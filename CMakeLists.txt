@@ -2133,6 +2133,22 @@ target_link_libraries(nr_ulsim PRIVATE
   )
 target_link_libraries(nr_ulsim PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
 
+add_executable(nr_ulsim_channel_estimation
+  ${OPENAIR1_DIR}/SIMULATION/NR_PHY/ulsim_channel_estimation.c
+  ${OPENAIR1_DIR}/SIMULATION/NR_PHY/nr_dummy_functions.c
+  ${OPENAIR_DIR}/executables/softmodem-common.c
+  ${NR_UE_RRC_DIR}/rrc_nsa.c
+  ${NFAPI_USER_DIR}/nfapi.c
+  ${NFAPI_USER_DIR}/gnb_ind_vars.c
+  ${PHY_INTERFACE_DIR}/queue_t.c
+  )
+
+target_link_libraries(nr_ulsim_channel_estimation PRIVATE
+  -Wl,--start-group UTIL SIMU PHY_COMMON PHY_NR_COMMON PHY_NR PHY_NR_UE SCHED_NR_LIB SCHED_NR_UE_LIB MAC_UE_NR MAC_NR_COMMON nr_rrc CONFIG_LIB L2_NR HASHTABLE x2ap SECURITY ngap -lz -Wl,--end-group
+  m pthread ${T_LIB} ITTI dl shlib_loader nr_ue_phy_meas
+  )
+target_link_libraries(nr_ulsim_channel_estimation PRIVATE asn1_nr_rrc_hdrs asn1_lte_rrc_hdrs)
+
 foreach(myExe dlsim dlsim_tm7 ulsim pbchsim scansim mbmssim pdcchsim pucchsim prachsim syncsim)
 
   add_executable(${myExe}
@@ -2180,7 +2196,7 @@ if (${T_TRACER})
         lte-softmodem lte-uesoftmodem nr-softmodem
         nr-uesoftmodem dlsim dlsim_tm4 dlsim_tm7
         ulsim pbchsim scansim mbmssim pdcchsim pucchsim prachsim
-        syncsim nr_ulsim nr_dlsim nr_dlschsim nr_pbchsim nr_pucchsim
+        syncsim nr_ulsim nr_dlsim nr_dlschsim nr_pbchsim nr_pucchsim nr_ulsim_channel_estimation
         nr_ulschsim ldpctest polartest smallblocktest cu_test du_test
         #all "add_library" definitions
         ITTI lte_rrc nr_rrc s1ap x2ap m2ap m3ap f1ap

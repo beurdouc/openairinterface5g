@@ -410,11 +410,11 @@ static void dmrs_amp_mult(const uint32_t dmrs_port,
 /*
 Map ULSCH data and DMRS in all of the scheduled symbols and PRBs
 */
-static void map_symbols(const nr_phy_pxsch_params_t p,
-                        const unsigned int slot,
-                        const c16_t *dmrs_seq,
-                        const c16_t *data,
-                        c16_t *out)
+void map_symbols(const nr_phy_pxsch_params_t p,
+                 const unsigned int slot,
+                 const c16_t *dmrs_seq,
+                 const c16_t *data,
+                 c16_t *out)
 {
   // asign the function pointers
   if (p.dmrs_type == pusch_dmrs_type1) {

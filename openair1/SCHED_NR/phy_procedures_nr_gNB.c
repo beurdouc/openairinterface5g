@@ -537,7 +537,7 @@ void nr_fill_indication(PHY_VARS_gNB *gNB,
 }
 
 // Function to fill UL RB mask to be used for N0 measurements
-static void fill_ul_rb_mask(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, uint32_t rb_mask_ul[14][9])
+void fill_ul_rb_mask(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, uint32_t rb_mask_ul[14][9])
 {
   int rb = 0;
   int rb2 = 0;

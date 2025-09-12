@@ -285,7 +285,9 @@ int nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     }
   }
 
+  start_meas(&phy_vars_gNB->ulsch_decoding_stats);
   int ret_decoder = phy_vars_gNB->nrLDPC_coding_interface.nrLDPC_coding_decoder(&slot_parameters);
+  stop_meas(&phy_vars_gNB->ulsch_decoding_stats);
   // post decode
   for (uint8_t pusch_id = 0; pusch_id < nb_pusch; pusch_id++) {
     uint8_t ULSCH_id = ULSCH_ids[pusch_id];

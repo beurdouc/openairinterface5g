@@ -774,7 +774,9 @@ static int do_one_dlsch(unsigned char *input_ptr, PHY_VARS_gNB *gNB, NR_gNB_DLSC
         re_beginning_of_symbol -= n_dmrs;
       }
     }
+    memset(&rdata->dlsch_resource_mapping_stats, 0, sizeof(rdata->dlsch_resource_mapping_stats));
     reset_meas(&rdata->dlsch_resource_mapping_stats);
+    memset(&rdata->dlsch_precoding_stats, 0, sizeof(rdata->dlsch_precoding_stats));
     reset_meas(&rdata->dlsch_precoding_stats);
     for (int l = 0; l < rel15->nrOfLayers; l++)
       rdata->tx_layers[l] = tx_layers[l];

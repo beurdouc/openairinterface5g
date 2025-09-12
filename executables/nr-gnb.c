@@ -210,10 +210,18 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
   output += print_meas_log(&gNB->l1_rx_proc, "L1 Rx job", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->phy_proc_tx, "L1 Tx processing", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_encoding_stats, "DLSCH encoding", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->dlsch_segmentation_stats,  "DL segment segmentation", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->tinput, "DL encoding input", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->tprep, "DL encoding preparation", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->tparity, "DL encoding parity", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->toutput, "DL encoding output", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->dlsch_rate_matching_stats, "DL rate matching", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->dlsch_interleaving_stats, "DL interleaving", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_scrambling_stats, "DLSCH scrambling", NULL, NULL, output, end-output);
   output += print_meas_log(&gNB->dlsch_modulation_stats, "DLSCH modulation", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_pdsch_generation_stats, "PDSCH generation", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->phy_proc_rx, "L1 Rx processing", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->ulsch_decoding_stats, "ULSCH decoding", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->ts_deinterleave, "UL segment deinterleaving", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->ts_rate_unmatch, "UL segment rate recovery", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->ts_ldpc_decode, "UL segments decoding", NULL, NULL, output, end - output);
@@ -221,8 +229,33 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
   output += print_meas_log(&gNB->slot_indication_stats, "Slot Indication", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->rx_pusch_stats, "PUSCH inner-receiver", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->rx_prach, "PRACH RX", NULL, NULL, output, end - output);
-  if (ru->feprx)
+  reset_meas(&gNB->l1_tx_proc);
+  reset_meas(&gNB->l1_rx_proc);
+  reset_meas(&gNB->phy_proc_tx);
+  reset_meas(&gNB->dlsch_encoding_stats);
+  reset_meas(&gNB->dlsch_segmentation_stats);
+  reset_meas(&gNB->tinput);
+  reset_meas(&gNB->tprep);
+  reset_meas(&gNB->tparity);
+  reset_meas(&gNB->toutput);
+  reset_meas(&gNB->dlsch_rate_matching_stats);
+  reset_meas(&gNB->dlsch_interleaving_stats);
+  reset_meas(&gNB->dlsch_scrambling_stats);
+  reset_meas(&gNB->dlsch_modulation_stats);
+  reset_meas(&gNB->dlsch_pdsch_generation_stats);
+  reset_meas(&gNB->phy_proc_rx);
+  reset_meas(&gNB->ulsch_decoding_stats);
+  reset_meas(&gNB->ts_deinterleave);
+  reset_meas(&gNB->ts_rate_unmatch);
+  reset_meas(&gNB->ts_ldpc_decode);
+  reset_meas(&gNB->ul_indication_stats);
+  reset_meas(&gNB->slot_indication_stats);
+  reset_meas(&gNB->rx_pusch_stats);
+  reset_meas(&gNB->rx_prach);
+  if (ru->feprx) {
     output += print_meas_log(&ru->ofdm_demod_stats, "feprx", NULL, NULL, output, end - output);
+    reset_meas(&ru->ofdm_demod_stats);
+  }
 
   bool full_slot = ru->half_slot_parallelization == 0;
   if (ru->feptx_prec) {
@@ -232,6 +265,7 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
                              NULL,
                              output,
                              end - output);
+    reset_meas(&ru->precoding_stats);
   }
 
   if (ru->feptx_ofdm) {
@@ -244,20 +278,30 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
                              end - output);
     output += print_meas_log(&ru->ofdm_total_stats,"feptx_total",NULL,NULL, output, end - output);
     output += print_meas_log(&ru->txdataF_copy_stats, "txdataF_copy", NULL, NULL, output, end - output);
+    reset_meas(&ru->txdataF_copy_stats);
+    reset_meas(&ru->ofdm_mod_stats);
+    reset_meas(&ru->ofdm_total_stats);
+    reset_meas(&ru->txdataF_copy_stats);
   }
 
-  if (ru->fh_north_asynch_in)
+  if (ru->fh_north_asynch_in) {
     output += print_meas_log(&ru->rx_fhaul,"rx_fhaul",NULL,NULL, output, end - output);
+    reset_meas(&ru->rx_fhaul);
+  }
 
   output += print_meas_log(&ru->tx_fhaul,"tx_fhaul",NULL,NULL, output, end - output);
+  reset_meas(&ru->tx_fhaul);
 
   if (ru->fh_north_out) {
     output += print_meas_log(&ru->compression,"compression",NULL,NULL, output, end - output);
     output += print_meas_log(&ru->transport,"transport",NULL,NULL, output, end - output);
+    reset_meas(&ru->compression);
+    reset_meas(&ru->transport);
   }
   return output - begin;
 }
 
+#define SORTED_LIST_SIZE 2048
 void *nrL1_stats_thread(void *param) {
   PHY_VARS_gNB     *gNB      = (PHY_VARS_gNB *)param;
   RU_t *ru = RC.ru[0];
@@ -270,20 +314,83 @@ void *nrL1_stats_thread(void *param) {
     return NULL;
   }
 
+  init_sorted_list_meas(&gNB->l1_tx_proc, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->l1_rx_proc, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->phy_proc_tx, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_encoding_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->tinput, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->tprep, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->tparity, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->toutput, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_segmentation_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_rate_matching_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_interleaving_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_scrambling_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_modulation_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->phy_proc_rx, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->ulsch_decoding_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->ts_deinterleave, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->ts_rate_unmatch, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->ts_ldpc_decode, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->ul_indication_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->slot_indication_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->rx_pusch_stats, SORTED_LIST_SIZE);
+  init_sorted_list_meas(&gNB->rx_prach, SORTED_LIST_SIZE);
+
   reset_meas(&gNB->l1_tx_proc);
   reset_meas(&gNB->l1_rx_proc);
   reset_meas(&gNB->phy_proc_tx);
   reset_meas(&gNB->dlsch_encoding_stats);
+  reset_meas(&gNB->dlsch_segmentation_stats);
+  reset_meas(&gNB->tinput);
+  reset_meas(&gNB->tprep);
+  reset_meas(&gNB->tparity);
+  reset_meas(&gNB->toutput);
+  reset_meas(&gNB->dlsch_rate_matching_stats);
+  reset_meas(&gNB->dlsch_interleaving_stats);
+  reset_meas(&gNB->dlsch_scrambling_stats);
+  reset_meas(&gNB->dlsch_modulation_stats);
+  reset_meas(&gNB->dlsch_pdsch_generation_stats);
   reset_meas(&gNB->phy_proc_rx);
+  reset_meas(&gNB->ulsch_decoding_stats);
   reset_meas(&gNB->ts_deinterleave);
   reset_meas(&gNB->ts_rate_unmatch);
   reset_meas(&gNB->ts_ldpc_decode);
   reset_meas(&gNB->ul_indication_stats);
   reset_meas(&gNB->slot_indication_stats);
   reset_meas(&gNB->rx_pusch_stats);
-  reset_meas(&gNB->dlsch_scrambling_stats);
-  reset_meas(&gNB->dlsch_modulation_stats);
-  reset_meas(&gNB->dlsch_pdsch_generation_stats);
+  reset_meas(&gNB->rx_prach);
+
+  if (ru->feprx) {
+    init_sorted_list_meas(&ru->ofdm_demod_stats, SORTED_LIST_SIZE);
+    reset_meas(&ru->ofdm_demod_stats);
+  }
+  if (ru->feptx_prec) {
+    init_sorted_list_meas(&ru->precoding_stats, SORTED_LIST_SIZE);
+    reset_meas(&ru->precoding_stats);
+  }
+  if (ru->feptx_ofdm) {
+    init_sorted_list_meas(&ru->txdataF_copy_stats, SORTED_LIST_SIZE);
+    init_sorted_list_meas(&ru->ofdm_mod_stats, SORTED_LIST_SIZE);
+    init_sorted_list_meas(&ru->ofdm_total_stats, SORTED_LIST_SIZE);
+    reset_meas(&ru->txdataF_copy_stats);
+    reset_meas(&ru->ofdm_mod_stats);
+    reset_meas(&ru->ofdm_total_stats);
+  }
+  if (ru->fh_north_asynch_in) {
+    init_sorted_list_meas(&ru->rx_fhaul, SORTED_LIST_SIZE);
+    reset_meas(&ru->rx_fhaul);
+  }
+  init_sorted_list_meas(&ru->tx_fhaul, SORTED_LIST_SIZE);
+  reset_meas(&ru->tx_fhaul);
+  if (ru->fh_north_out) {
+    init_sorted_list_meas(&ru->compression, SORTED_LIST_SIZE);
+    init_sorted_list_meas(&ru->transport, SORTED_LIST_SIZE);
+    reset_meas(&ru->compression);
+    reset_meas(&ru->transport);
+  }
+
   while (!oai_exit) {
     sleep(1);
     if (ftruncate(fileno(fd), 0) != 0 || fseek(fd, 0, SEEK_SET) != 0) {
@@ -297,6 +404,52 @@ void *nrL1_stats_thread(void *param) {
     fprintf(fd,"%s\n",output);
     fflush(fd);
   }
+
+  free_sorted_list_meas(&gNB->l1_tx_proc);
+  free_sorted_list_meas(&gNB->l1_rx_proc);
+  free_sorted_list_meas(&gNB->phy_proc_tx);
+  free_sorted_list_meas(&gNB->dlsch_encoding_stats);
+  free_sorted_list_meas(&gNB->dlsch_segmentation_stats);
+  free_sorted_list_meas(&gNB->tinput);
+  free_sorted_list_meas(&gNB->tprep);
+  free_sorted_list_meas(&gNB->tparity);
+  free_sorted_list_meas(&gNB->toutput);
+  free_sorted_list_meas(&gNB->dlsch_rate_matching_stats);
+  free_sorted_list_meas(&gNB->dlsch_interleaving_stats);
+  free_sorted_list_meas(&gNB->dlsch_scrambling_stats);
+  free_sorted_list_meas(&gNB->dlsch_modulation_stats);
+  free_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats);
+  free_sorted_list_meas(&gNB->phy_proc_rx);
+  free_sorted_list_meas(&gNB->ulsch_decoding_stats);
+  free_sorted_list_meas(&gNB->ts_deinterleave);
+  free_sorted_list_meas(&gNB->ts_rate_unmatch);
+  free_sorted_list_meas(&gNB->ts_ldpc_decode);
+  free_sorted_list_meas(&gNB->ul_indication_stats);
+  free_sorted_list_meas(&gNB->slot_indication_stats);
+  free_sorted_list_meas(&gNB->rx_pusch_stats);
+  free_sorted_list_meas(&gNB->rx_prach);
+
+  if (ru->feprx) {
+    free_sorted_list_meas(&ru->ofdm_demod_stats);
+  }
+  if (ru->feptx_prec) {
+    free_sorted_list_meas(&ru->precoding_stats);
+  }
+  if (ru->feptx_ofdm) {
+    free_sorted_list_meas(&ru->txdataF_copy_stats);
+    free_sorted_list_meas(&ru->ofdm_mod_stats);
+    free_sorted_list_meas(&ru->ofdm_total_stats);
+    free_sorted_list_meas(&ru->txdataF_copy_stats);
+  }
+  if (ru->fh_north_asynch_in) {
+    free_sorted_list_meas(&ru->rx_fhaul);
+  }
+  free_sorted_list_meas(&ru->tx_fhaul);
+  if (ru->fh_north_out) {
+    free_sorted_list_meas(&ru->compression);
+    free_sorted_list_meas(&ru->transport);
+  }
+
   fclose(fd);
   return(NULL);
 }

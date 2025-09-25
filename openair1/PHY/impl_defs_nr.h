@@ -356,12 +356,8 @@ typedef enum{
   betaOffset_dynamic = 1,
   betaOffset_semiStatic = 2
 }betaOffset_type_t;
-typedef struct{
-
-} betaOffset_t;
 typedef struct {
   betaOffset_type_t betaOffset_type;
-  betaOffset_t betaOffset;
 } uci_onPusch_t;
 
 /***********************************************************************

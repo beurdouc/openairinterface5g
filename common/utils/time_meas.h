@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include "openair1/PHY/impl_defs_nr.h"
 // global var to enable openair performance profiler
 extern int cpu_meas_enabled;
 extern double cpu_freq_GHz  __attribute__ ((aligned(32)));
@@ -278,6 +279,18 @@ static inline void start_meas(time_stats_t *ts) {
   }
 }
 
+static inline void start_meas_on_dl(time_stats_t *ts, int slot_type) {
+  if(slot_type == NR_DOWNLINK_SLOT) {
+    start_meas(ts);
+  }
+}
+
+static inline void start_meas_on_ul(time_stats_t *ts, int slot_type) {
+  if(slot_type == NR_UPLINK_SLOT) {
+    start_meas(ts);
+  }
+}
+
 static inline void stop_meas(time_stats_t *ts) {
   if (cpu_meas_enabled) {
     long long out = clock_gettime_oai();
@@ -293,6 +306,18 @@ static inline void stop_meas(time_stats_t *ts) {
       insert_in_time_stats_sorted_list(&ts->time_stats_sorted_list, (out - ts->in));
       ts->meas_flag = 0;
     }
+  }
+}
+
+static inline void stop_meas_on_dl(time_stats_t *ts, int slot_type) {
+  if(slot_type == NR_DOWNLINK_SLOT) {
+    stop_meas(ts);
+  }
+}
+
+static inline void stop_meas_on_ul(time_stats_t *ts, int slot_type) {
+  if(slot_type == NR_UPLINK_SLOT) {
+    stop_meas(ts);
   }
 }
 
@@ -328,6 +353,17 @@ static inline void merge_meas(time_stats_t *dst_ts, const time_stats_t *src_ts)
   merge_time_stats_sorted_list(&dst_ts->time_stats_sorted_list, &src_ts->time_stats_sorted_list);
 }
 
+static inline void merge_meas_on_dl(time_stats_t *dst_ts, const time_stats_t *src_ts, int slot_type) {
+  if(slot_type == NR_DOWNLINK_SLOT) {
+    merge_meas(dst_ts, src_ts);
+  }
+}
+
+static inline void merge_meas_on_ul(time_stats_t *dst_ts, const time_stats_t *src_ts, int slot_type) {
+  if(slot_type == NR_UPLINK_SLOT) {
+    merge_meas(dst_ts, src_ts);
+  }
+}
 
 #define TIME_STATS_ADVANCED_MODE 2
 

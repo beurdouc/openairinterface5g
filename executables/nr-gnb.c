@@ -95,7 +95,7 @@ static void tx_func(processingData_L1tx_t *info)
   // TODO check for analog_bf_vendor_ext set to 1 is a workaround while no beam API for beam selection is implemented
   if (tx_slot_type == NR_DOWNLINK_SLOT || tx_slot_type == NR_MIXED_SLOT || get_softmodem_params()->continuous_tx
       || IS_SOFTMODEM_RFSIM || cfg->analog_beamforming_ve.analog_bf_vendor_ext.value) {
-    start_meas(&info->gNB->phy_proc_tx);
+    start_meas_on_dl(&info->gNB->phy_proc_tx, tx_slot_type);
     phy_procedures_gNB_TX(info->gNB, &sched_response.DL_req, &sched_response.TX_req, &sched_response.UL_dci_req, frame_tx,slot_tx);
 
     PHY_VARS_gNB *gNB = info->gNB;
@@ -106,7 +106,7 @@ static void tx_func(processingData_L1tx_t *info)
     syncMsgRU.timestamp_tx = info->timestamp_tx;
     LOG_D(PHY, "gNB: %d.%d : calling RU TX function\n", syncMsgRU.frame_tx, syncMsgRU.slot_tx);
     ru_tx_func((void *)&syncMsgRU);
-    stop_meas(&info->gNB->phy_proc_tx);
+    stop_meas_on_dl(&info->gNB->phy_proc_tx, tx_slot_type);
   }
 }
 
@@ -119,9 +119,10 @@ void *L1_rx_thread(void *arg)
      if (res == NULL)
        break;
      processingData_L1_t *info = (processingData_L1_t *)NotifiedFifoData(res);
-     start_meas(&gNB->l1_rx_proc);
+     int slot_type = nr_slot_select(&gNB->gNB_config, info->frame_rx, info->slot_rx);
+     start_meas_on_ul(&gNB->l1_rx_proc, slot_type);
      rx_func(info);
-     stop_meas(&gNB->l1_rx_proc);
+     stop_meas_on_ul(&gNB->l1_rx_proc, slot_type);
      delNotifiedFIFO_elt(res);
   }
   return NULL;
@@ -135,9 +136,10 @@ void *L1_tx_thread(void *arg) {
      if (res == NULL) // stopping condition, happens only when queue is freed
        break;
      processingData_L1tx_t *info = (processingData_L1tx_t *)NotifiedFifoData(res);
-     start_meas(&gNB->l1_tx_proc);
+     int slot_type = nr_slot_select(&gNB->gNB_config, info->frame, info->slot);
+     start_meas_on_dl(&gNB->l1_tx_proc, slot_type);
      tx_func(info);
-     stop_meas(&gNB->l1_tx_proc);
+     stop_meas_on_dl(&gNB->l1_tx_proc, slot_type);
      delNotifiedFIFO_elt(res);
   }
   return NULL;
@@ -190,9 +192,9 @@ static void rx_func(processingData_L1_t *info)
     phy_procedures_gNB_uespec_RX(gNB, frame_rx, slot_rx, &UL_INFO);
 
     // Call the scheduler
-    start_meas(&gNB->ul_indication_stats);
+    start_meas_on_ul(&gNB->ul_indication_stats, rx_slot_type);
     gNB->if_inst->NR_UL_indication(&UL_INFO);
-    stop_meas(&gNB->ul_indication_stats);
+    stop_meas_on_ul(&gNB->ul_indication_stats, rx_slot_type);
 
     notifiedFIFO_elt_t *res = newNotifiedFIFO_elt(sizeof(processingData_L1_t), 0, &gNB->L1_rx_out, NULL);
     processingData_L1_t *syncMsg = NotifiedFifoData(res);

@@ -11,6 +11,7 @@
 
 #include "PHY/defs_gNB.h"
 #include "common/utils/threadPool/thread-pool.h"
+#include "time_meas.h"
 
 #define NUMBER_FRAMES_PHY_UE_INACTIVE 10
 
@@ -37,5 +38,23 @@ int nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
 void dump_pusch_stats(FILE *fd,PHY_VARS_gNB *gNB);
 
 NR_gNB_SCH_STATS_t *get_ulsch_stats(PHY_VARS_gNB *gNB,NR_gNB_ULSCH_t *ulsch);
+
+static inline void start_meas_on_ul(time_stats_t *ts, int slot_type) {
+  if(slot_type == NR_UPLINK_SLOT) {
+    start_meas(ts);
+  }
+}
+
+static inline void stop_meas_on_ul(time_stats_t *ts, int slot_type) {
+  if(slot_type == NR_UPLINK_SLOT) {
+    stop_meas(ts);
+  }
+}
+
+static inline void merge_meas_on_ul(time_stats_t *dst_ts, const time_stats_t *src_ts, int slot_type) {
+  if(slot_type == NR_UPLINK_SLOT) {
+    merge_meas(dst_ts, src_ts);
+  }
+}
 
 #endif /* NR_ULSCH_H_ */

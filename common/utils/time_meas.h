@@ -329,7 +329,6 @@ static inline void merge_meas(time_stats_t *dst_ts, const time_stats_t *src_ts)
   merge_time_stats_sorted_list(&dst_ts->time_stats_sorted_list, &src_ts->time_stats_sorted_list);
 }
 
-
 #define TIME_STATS_ADVANCED_MODE 2
 
 static inline void init_sorted_list_meas(time_stats_t *ts, unsigned int size)

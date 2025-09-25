@@ -493,7 +493,8 @@ void phy_procedures_gNB_TX(PHY_VARS_gNB *gNB,
     exit(-1);*/
   }
 
-  start_meas(&gNB->phase_comp_stats);
+  int slot_type = nr_slot_select(&gNB->gNB_config, frame, slot);
+  start_meas_on_dl(&gNB->phase_comp_stats, slot_type);
   for (int aa = 0; aa < cfg->carrier_config.num_tx_ant.value; aa++) {
       T(T_GNB_PHY_DL_OUTPUT_SIGNAL,
         T_INT(0),
@@ -502,7 +503,7 @@ void phy_procedures_gNB_TX(PHY_VARS_gNB *gNB,
         T_INT(aa),
         T_BUFFER(gNB->common_vars.txdataF[aa], fp->samples_per_slot_wCP * sizeof(int32_t)));
   }
-  stop_meas(&gNB->phase_comp_stats);
+  stop_meas_on_dl(&gNB->phase_comp_stats, slot_type);
 }
 
 static int nr_ulsch_procedures(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, int *ulsch_to_decode, int nb_pusch, NR_UL_IND_t *UL_INFO)
@@ -1388,7 +1389,8 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     gNB_I0_measurements(gNB, slot_rx, first_symb, num_symb, rb_mask_ul);
   }
 
-  start_meas(&gNB->phy_proc_rx);
+  int slot_type = nr_slot_select(&gNB->gNB_config, frame_rx, slot_rx);
+  start_meas_on_ul(&gNB->phy_proc_rx, slot_type);
   UL_INFO->uci_ind.uci_list = UL_INFO->uci_pdu_list;
   UL_INFO->uci_ind.sfn = frame_rx;
   UL_INFO->uci_ind.slot = slot_rx;
@@ -1453,13 +1455,13 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     }
   }
 
-  start_meas(&gNB->ulsch_decoding_stats);
   if (num_pusch > 0) {
+    start_meas_on_ul(&gNB->ulsch_decoding_stats, slot_type);
     int ret_nr_ulsch_procedures = nr_ulsch_procedures(gNB, frame_rx, slot_rx, ulsch_idx_to_decode, num_pusch, UL_INFO);
     if (ret_nr_ulsch_procedures != 0)
       LOG_E(NR_PHY, "Error in nr_ulsch_procedures, returned %d\n", ret_nr_ulsch_procedures);
+    stop_meas_on_ul(&gNB->ulsch_decoding_stats, slot_type);
   }
-  stop_meas(&gNB->ulsch_decoding_stats);
 
   UL_INFO->srs_ind.sfn = frame_rx;
   UL_INFO->srs_ind.slot = slot_rx;
@@ -1471,7 +1473,7 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     stop_meas(&gNB->rx_srs_stats);
   }
 
-  stop_meas(&gNB->phy_proc_rx);
+  stop_meas_on_ul(&gNB->phy_proc_rx, slot_type);
 
   if (n_pucch > 0 || num_pusch > 0) {
     UNUSED(ofdm_symbol_size); // only used if T activated

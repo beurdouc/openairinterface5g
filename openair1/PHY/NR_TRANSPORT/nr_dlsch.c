@@ -623,6 +623,7 @@ static void nr_pdsch_symbol_processing(void *arg)
 static int do_one_dlsch(unsigned char *input_ptr,
                         PHY_VARS_gNB *gNB,
                         NR_gNB_DLSCH_t *dlsch,
+                        int frame,
                         int slot,
                         uint64_t *pdsch_phase_comp_prb_mask,
                         int prb_mask_words)
@@ -674,17 +675,18 @@ static int do_one_dlsch(unsigned char *input_ptr,
   if (IS_SOFTMODEM_DLSIM)
     memcpy(dlsch->f, input_ptr, (encoded_length + 7) >> 3);
 
-  start_meas(&gNB->dlsch_pdsch_generation_stats);
+  int slot_type = nr_slot_select(&gNB->gNB_config, frame, slot);
+  start_meas_on_dl(&gNB->dlsch_pdsch_generation_stats, slot_type);
   int layerSz2 = (layerSz + 63) & ~63;
   c16_t tx_layers[rel15->nrOfLayers][layerSz2] __attribute__((aligned(64)));
   memset(tx_layers, 0, sizeof(tx_layers));
 
-  start_meas(dlsch_scrambling_stats);
+  start_meas_on_dl(dlsch_scrambling_stats, slot_type);
   uint32_t scrambled_output[(encoded_length >> 5) + 4]; // modulator access by 4 bytes in some cases
   memset(scrambled_output, 0, sizeof(scrambled_output));
-  start_meas(dlsch_modulation_stats);
+  start_meas_on_dl(dlsch_modulation_stats, slot_type);
   nr_pdsch_codeword_scrambling(input_ptr, encoded_length, 0, rel15->dataScramblingId, rel15->rnti, scrambled_output);
-  stop_meas(dlsch_scrambling_stats);
+  stop_meas_on_dl(dlsch_scrambling_stats, slot_type);
 
   const bool fused_ok =
       nr_modulation_layer_mapping(scrambled_output, encoded_length, Qm, rel15->nrOfLayers, layerSz2, tx_layers);
@@ -693,7 +695,7 @@ static int do_one_dlsch(unsigned char *input_ptr,
                 Qm,
                 rel15->nrOfLayers,
                 rel15->NrOfCodewords);
-  stop_meas(dlsch_modulation_stats);
+  stop_meas_on_dl(dlsch_modulation_stats, slot_type);
 
   /// Layer Precoding and Antenna port mapping
   // tx_layers 1-8 are mapped on antenna ports 1000-1007
@@ -722,7 +724,7 @@ static int do_one_dlsch(unsigned char *input_ptr,
                           frame_parms->nb_antennas_tx,
                           gNB->common_vars.beam_id);
   }
-  stop_meas(&gNB->dlsch_layer_mapping_stats);
+  stop_meas_on_dl(&gNB->dlsch_layer_mapping_stats, slot_type);
 
   // spawn symbol threads
 
@@ -791,7 +793,7 @@ static int do_one_dlsch(unsigned char *input_ptr,
     merge_meas(&gNB->dlsch_resource_mapping_stats, &arr[i].dlsch_resource_mapping_stats);
     merge_meas(&gNB->dlsch_precoding_stats, &arr[i].dlsch_precoding_stats);
   }
-  stop_meas(&gNB->dlsch_pdsch_generation_stats);
+  stop_meas_on_dl(&gNB->dlsch_pdsch_generation_stats, slot_type);
   /* output and its parts for each dlsch should be aligned on 64 bytes (or 8 * 64 bits)
    * should remain a multiple of 8 * 64 with enough offset to fit each dlsch
    */
@@ -869,7 +871,8 @@ void nr_generate_pdsch(PHY_VARS_gNB *gNB,
   unsigned char output[size_output >> 3] __attribute__((aligned(64)));
   bzero(output, sizeof(output));
 
-  start_meas(dlsch_encoding_stats);
+  int slot_type = nr_slot_select(&gNB->gNB_config, frame, slot);
+  start_meas_on_dl(dlsch_encoding_stats, slot_type);
   if (nr_dlsch_encoding(gNB,
                         n_dlsch,
                         dlsch_array,
@@ -889,11 +892,11 @@ void nr_generate_pdsch(PHY_VARS_gNB *gNB,
       == -1) {
     return;
   }
-  stop_meas(dlsch_encoding_stats);
+  stop_meas_on_dl(dlsch_encoding_stats, slot_type);
 
   unsigned char *output_ptr = output;
   for (int i = 0; i < n_dlsch; i++) {
-    output_ptr += do_one_dlsch(output_ptr, gNB, &dlsch_array[i], slot, pdsch_phase_comp_prb_mask, prb_mask_words);
+    output_ptr += do_one_dlsch(output_ptr, gNB, &dlsch_array[i], frame, slot, pdsch_phase_comp_prb_mask, prb_mask_words);
   }
 }
 

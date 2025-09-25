@@ -287,6 +287,7 @@ int nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
 
   int ret_decoder = phy_vars_gNB->nrLDPC_coding_interface.nrLDPC_coding_decoder(&slot_parameters);
   // post decode
+  int slot_type = nr_slot_select(&phy_vars_gNB->gNB_config, frame, nr_tti_rx);
   for (uint8_t pusch_id = 0; pusch_id < nb_pusch; pusch_id++) {
     uint8_t ULSCH_id = ULSCH_ids[pusch_id];
     NR_gNB_ULSCH_t *ulsch = &phy_vars_gNB->ulsch[ULSCH_id];
@@ -310,10 +311,12 @@ int nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     bool crcok = (harq_process->processedSegments == TB_parameters->C);
     if (!crcok)
       LOG_D(PHY, "ULSCH %d in error\n", ULSCH_id);
-    merge_meas(&phy_vars_gNB->ts_deinterleave, &TB_parameters->ts_deinterleave);
-    merge_meas(&phy_vars_gNB->ts_rate_unmatch, &TB_parameters->ts_rate_unmatch);
-    merge_meas(&phy_vars_gNB->ts_seg_prep, &TB_parameters->ts_seg_prep);
-    merge_meas(&phy_vars_gNB->ts_ldpc_decode, &TB_parameters->ts_ldpc_decode);
+
+    merge_meas_on_ul(&phy_vars_gNB->ts_deinterleave, &TB_parameters->ts_deinterleave, slot_type);
+    merge_meas_on_ul(&phy_vars_gNB->ts_rate_unmatch, &TB_parameters->ts_rate_unmatch, slot_type);
+    merge_meas_on_ul(&phy_vars_gNB->ts_seg_prep, &TB_parameters->ts_seg_prep, slot_type);
+    merge_meas_on_ul(&phy_vars_gNB->ts_ldpc_decode, &TB_parameters->ts_ldpc_decode, slot_type);
+
     harq_process->harq_to_be_cleared = false;
   }
 

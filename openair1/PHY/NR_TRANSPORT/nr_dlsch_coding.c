@@ -273,9 +273,17 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
       init_sorted_list_meas(&segment_parameters->ts_interleave, 1);
       init_sorted_list_meas(&segment_parameters->ts_rate_match, 1);
       init_sorted_list_meas(&segment_parameters->ts_ldpc_encode, 1);
+      init_sorted_list_meas(&segment_parameters->tinput, 1);
+      init_sorted_list_meas(&segment_parameters->tprep, 1);
+      init_sorted_list_meas(&segment_parameters->tparity, 1);
+      init_sorted_list_meas(&segment_parameters->toutput, 1);
       reset_meas(&segment_parameters->ts_interleave);
       reset_meas(&segment_parameters->ts_rate_match);
       reset_meas(&segment_parameters->ts_ldpc_encode);
+      reset_meas(&segment_parameters->tinput);
+      reset_meas(&segment_parameters->tprep);
+      reset_meas(&segment_parameters->tparity);
+      reset_meas(&segment_parameters->toutput);
     }
 
     segments_offset += TB_parameters->C;
@@ -291,10 +299,6 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
                                                        .slot = slot,
                                                        .nb_TBs = n_dlsch,
                                                        .threadPool = &gNB->threadPool,
-                                                       .tinput = tinput,
-                                                       .tprep = tprep,
-                                                       .tparity = tparity,
-                                                       .toutput = toutput,
                                                        .TBs = TBs};
   gNB->nrLDPC_coding_interface.nrLDPC_coding_encoder(&slot_parameters);
 
@@ -305,9 +309,17 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
       merge_meas(dlsch_interleaving_stats, &segment_parameters->ts_interleave);
       merge_meas(dlsch_rate_matching_stats, &segment_parameters->ts_rate_match);
       // merge_meas(, &segment_parameters->ts_ldpc_encode);
+      merge_meas(tinput, &segment_parameters->tinput);
+      merge_meas(tprep, &segment_parameters->tprep);
+      merge_meas(tparity, &segment_parameters->tparity);
+      merge_meas(toutput, &segment_parameters->toutput);
       free_sorted_list_meas(&segment_parameters->ts_interleave);
       free_sorted_list_meas(&segment_parameters->ts_rate_match);
       free_sorted_list_meas(&segment_parameters->ts_ldpc_encode);
+      free_sorted_list_meas(&segment_parameters->tinput);
+      free_sorted_list_meas(&segment_parameters->tprep);
+      free_sorted_list_meas(&segment_parameters->tparity);
+      free_sorted_list_meas(&segment_parameters->toutput);
     }
   }
   return 0;

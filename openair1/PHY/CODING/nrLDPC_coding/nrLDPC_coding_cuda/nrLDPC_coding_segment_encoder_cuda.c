@@ -906,12 +906,6 @@ int nrLDPC_coding_encoder32(nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encod
 
     encoder_implemparams_t common_segment_params = {
       .n_segments = nrLDPC_TB_encoding_parameters->C,
-      .tinput = nrLDPC_slot_encoding_parameters->tinput,
-      .tinput_memcpy = nrLDPC_slot_encoding_parameters->tinput_memcpy,
-      .tprep = nrLDPC_slot_encoding_parameters->tprep,
-      .tparity = nrLDPC_slot_encoding_parameters->tparity,
-      .toutput = nrLDPC_slot_encoding_parameters->toutput,
-      .tconcat = nrLDPC_slot_encoding_parameters->tconcat,
       .Kb = nrLDPC_TB_encoding_parameters->Kb,
       .Zc = nrLDPC_TB_encoding_parameters->Z,
       .BG = nrLDPC_TB_encoding_parameters->BG,

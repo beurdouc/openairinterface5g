@@ -897,9 +897,9 @@ static void ldpcnblocks(nrLDPC_TB_encoding_parameters_t *nrLDPC_TB_encoding_para
   */
   stop_meas(&nrLDPC_TB_encoding_parameters->segments[0].ts_interleave);
 
-  if (impp.tconcat) start_meas(impp.tconcat);
+  if (impp.toutput) start_meas(impp.toutput);
   unpack_output(f,E,f2,E2,r_shift,r_shift2,nrLDPC_TB_encoding_parameters->C,output);
-  if (impp.tconcat) stop_meas(impp.tconcat);
+  if (impp.toutput) stop_meas(impp.toutput);
 
 }
 
@@ -909,12 +909,10 @@ int nrLDPC_coding_encoder32(nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encod
 
     encoder_implemparams_t common_segment_params = {
       .n_segments = nrLDPC_TB_encoding_parameters->C,
-      .tinput = nrLDPC_slot_encoding_parameters->tinput,
-      .tinput_memcpy = nrLDPC_slot_encoding_parameters->tinput_memcpy,
-      .tprep = nrLDPC_slot_encoding_parameters->tprep,
-      .tparity = nrLDPC_slot_encoding_parameters->tparity,
-      .toutput = nrLDPC_slot_encoding_parameters->toutput,
-      .tconcat = nrLDPC_slot_encoding_parameters->tconcat,
+      .tinput = &nrLDPC_TB_encoding_parameters->segments[0].tinput,
+      .tprep = &nrLDPC_TB_encoding_parameters->segments[0].tprep,
+      .tparity = &nrLDPC_TB_encoding_parameters->segments[0].tparity,
+      .toutput = &nrLDPC_TB_encoding_parameters->segments[0].toutput,
       .Kb = nrLDPC_TB_encoding_parameters->Kb,
       .Zc = nrLDPC_TB_encoding_parameters->Z,
       .BG = nrLDPC_TB_encoding_parameters->BG,

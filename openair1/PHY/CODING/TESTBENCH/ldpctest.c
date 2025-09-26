@@ -103,7 +103,7 @@ one_measurement_t test_ldpc(short max_iterations,
   reset_meas(&ret.time_decoder);
   // clock initiate
   // time_stats_t time,time_optim,tinput,tprep,tparity,toutput, time_decoder;
-  time_stats_t time, tinput, tinput_memcpy, tprep, tparity, toutput;
+  time_stats_t time, tinput, tprep, tparity, toutput;
   double n_iter_mean = 0;
   double n_iter_std = 0;
   int n_iter_max = 0;
@@ -138,7 +138,6 @@ one_measurement_t test_ldpc(short max_iterations,
 
   reset_meas(&time);
   reset_meas(&tinput);
-  reset_meas(&tinput_memcpy);
   reset_meas(&tprep);
   reset_meas(&tparity);
   reset_meas(&toutput);
@@ -289,7 +288,6 @@ one_measurement_t test_ldpc(short max_iterations,
   impp.gen_code = gen_code;
   impp.tparity = &tparity;
   impp.tinput = &tinput;
-  impp.tinput_memcpy = &tinput_memcpy;
   impp.toutput = &toutput;
 
   if (ntrials == 0)
@@ -311,7 +309,7 @@ one_measurement_t test_ldpc(short max_iterations,
     impp.tinput = &tinput;
     impp.tparity = &tparity;
     impp.toutput = &toutput;
-    impp.tinput_memcpy = &tprep;
+    impp.tprep = &tprep;
     start_meas(&ret.time_optim);
     impp.first_seg = 0;
     if (use32bit == 0)
@@ -443,7 +441,6 @@ one_measurement_t test_ldpc(short max_iterations,
   print_meas(&time, "ldpc_encoder", NULL, NULL);
   print_meas(&ret.time_optim, "ldpc_encoder_optim", NULL, NULL);
   print_meas(&tinput, "ldpc_encoder_optim(input)", NULL, NULL);
-  print_meas(&tinput_memcpy, "ldpc_encoder_optim(input memcpy)", NULL, NULL);
   print_meas(&tprep, "ldpc_encoder_optim(prep)", NULL, NULL);
   print_meas(&tparity, "ldpc_encoder_optim(parity)", NULL, NULL);
   print_meas(&toutput, "ldpc_encoder_optim(output)", NULL, NULL);

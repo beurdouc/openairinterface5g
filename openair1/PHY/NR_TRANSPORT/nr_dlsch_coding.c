@@ -117,11 +117,9 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
                       uint8_t slot,
                       unsigned char *output,
                       time_stats_t *tinput,
-                      time_stats_t *tinput_memcpy,
                       time_stats_t *tprep,
                       time_stats_t *tparity,
                       time_stats_t *toutput,
-                      time_stats_t *tconcat,
                       time_stats_t *dlsch_rate_matching_stats,
                       time_stats_t *dlsch_interleaving_stats,
                       time_stats_t *dlsch_segmentation_stats,
@@ -277,6 +275,10 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
       reset_meas(&segment_parameters->ts_interleave);
       reset_meas(&segment_parameters->ts_rate_match);
       reset_meas(&segment_parameters->ts_ldpc_encode);
+      reset_meas(&segment_parameters->tinput);
+      reset_meas(&segment_parameters->tprep);
+      reset_meas(&segment_parameters->tparity);
+      reset_meas(&segment_parameters->toutput);
     }
 
     segments_offset += TB_parameters->C;
@@ -292,10 +294,6 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
                                                        .slot = slot,
                                                        .nb_TBs = n_dlsch,
                                                        .threadPool = &gNB->threadPool,
-                                                       .tinput = tinput,
-                                                       .tprep = tprep,
-                                                       .tparity = tparity,
-                                                       .toutput = toutput,
                                                        .TBs = TBs};
   gNB->nrLDPC_coding_interface.nrLDPC_coding_encoder(&slot_parameters);
 
@@ -306,6 +304,10 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
       merge_meas_on_dl(dlsch_interleaving_stats, &segment_parameters->ts_interleave, slot_type);
       merge_meas_on_dl(dlsch_rate_matching_stats, &segment_parameters->ts_rate_match, slot_type);
       // merge_meas_on_dl(, &segment_parameters->ts_ldpc_encode, slot_type);
+      merge_meas_on_dl(tinput, &segment_parameters->tinput, slot_type);
+      merge_meas_on_dl(tprep, &segment_parameters->tprep, slot_type);
+      merge_meas_on_dl(tparity, &segment_parameters->tparity, slot_type);
+      merge_meas_on_dl(toutput, &segment_parameters->toutput, slot_type);
     }
   }
   return 0;

@@ -182,9 +182,8 @@ static inline void stop_meas(time_stats_t *ts) __attribute__((always_inline));
 /**
  * \brief get the standard deviation of a timer
  * \param ptr timer to query
- * \param cpu_freq_GHz CPU frequency
  */
-double get_std_dev(time_stats_t *ptr, double cpu_freq_GHz);
+double get_std_dev(time_stats_t *ptr);
 void print_meas_now(time_stats_t *ts, const char *name, FILE *file_name);
 void print_meas(time_stats_t *ts, const char *name, time_stats_t *total_exec_time, time_stats_t *sf_exec_time);
 size_t print_meas_log_header(time_stats_t *total_exec_time,
@@ -232,6 +231,19 @@ static inline uint32_t rdtsc_oai(void) {
 }
 #endif
 
+static inline long long clock_gettime_oai()
+{
+  struct timespec time;
+#ifdef CLOCK_MONOTONIC_RAW
+  // CLOCK_MONOTONIC_RAW only on linux
+  // See clock_getres(2)
+  clock_gettime(CLOCK_MONOTONIC_RAW, &time);
+#else
+  clock_gettime(CLOCK_REALTIME, &time);
+#endif
+  return 1e+9 * time.tv_sec + time.tv_nsec;
+}
+
 #define CPUMEAS_DISABLE  0
 #define CPUMEAS_ENABLE   1
 #define CPUMEAS_GETSTATE 2
@@ -257,10 +269,10 @@ static inline void start_meas(time_stats_t *ts) {
   if (cpu_meas_enabled) {
     if (ts->meas_flag==0) {
       ts->trials++;
-      ts->in = rdtsc_oai();
+      ts->in = clock_gettime_oai();
       ts->meas_flag=1;
     } else {
-      ts->in = rdtsc_oai();
+      ts->in = clock_gettime_oai();
     }
     if ((ts->trials&16383)<10) ts->max=0;
   }
@@ -268,7 +280,7 @@ static inline void start_meas(time_stats_t *ts) {
 
 static inline void stop_meas(time_stats_t *ts) {
   if (cpu_meas_enabled) {
-    long long out = rdtsc_oai();
+    long long out = clock_gettime_oai();
     if (ts->in) {
       ts->diff += (out - ts->in);
       /// process duration is the difference between two clock points
@@ -343,8 +355,8 @@ void end_meas(void);
 
 #define timeIt(a)                                           \
   {                                                         \
-    uint64_t deb = rdtsc_oai();                             \
+    uint64_t deb = clock_gettime_oai();                             \
     a;                                                      \
-    LOG_W(UTIL, #a ": %llu\n", (rdtsc_oai() - deb) / 3000); \
+    LOG_W(UTIL, #a ": %llu\n", (clock_gettime_oai() - deb) / 3000); \
   }
 #endif

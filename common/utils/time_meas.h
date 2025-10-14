@@ -206,6 +206,19 @@ static inline uint32_t rdtsc_oai(void) {
 }
 #endif
 
+static inline long long clock_gettime_oai()
+{
+  struct timespec time;
+#ifdef CLOCK_MONOTONIC_RAW
+  // CLOCK_MONOTONIC_RAW only on linux
+  // See clock_getres(2)
+  clock_gettime(CLOCK_MONOTONIC_RAW, &time);
+#else
+  clock_gettime(CLOCK_REALTIME, &time);
+#endif
+  return 1e+9 * time.tv_sec + time.tv_nsec;
+}
+
 #define CPUMEAS_DISABLE  0
 #define CPUMEAS_ENABLE   1
 #define CPUMEAS_GETSTATE 2
@@ -231,10 +244,10 @@ static inline void start_meas(time_stats_t *ts) {
   if (cpu_meas_enabled) {
     if (ts->meas_flag==0) {
       ts->trials++;
-      ts->in = rdtsc_oai();
+      ts->in = clock_gettime_oai();
       ts->meas_flag=1;
     } else {
-      ts->in = rdtsc_oai();
+      ts->in = clock_gettime_oai();
     }
     if ((ts->trials&16383)<10) ts->max=0;
   }
@@ -242,7 +255,7 @@ static inline void start_meas(time_stats_t *ts) {
 
 static inline void stop_meas(time_stats_t *ts) {
   if (cpu_meas_enabled) {
-    long long out = rdtsc_oai();
+    long long out = clock_gettime_oai();
     if (ts->in) {
       ts->diff += (out - ts->in);
       /// process duration is the difference between two clock points

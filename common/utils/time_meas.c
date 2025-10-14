@@ -35,10 +35,9 @@ double get_cpu_freq_GHz(void)
 }
 
 
-double get_std_dev(time_stats_t *ptr, double cpu_freq_GHz)
+double get_std_dev(time_stats_t *ptr)
 {
-  double timeBase = 1 / (1000 * cpu_freq_GHz);
-  return sqrt((double)ptr->diff_square * pow(timeBase, 2) / ptr->trials - pow((double)ptr->diff / ptr->trials * timeBase, 2));
+  return sqrt((double)ptr->diff_square * 1e-6 / ptr->trials - pow((double)ptr->diff / ptr->trials / 1000, 2));
 }
 
 
@@ -161,14 +160,14 @@ size_t print_meas_log(time_stats_t *ts,
                            name,
                            ts->diff / ts->trials / 1000.0,
                            ts->max / 1000.0,
-                           get_std_dev(ts, cpu_freq_GHz),
+                           get_std_dev(ts),
                            ts->trials,
-                           get_min(&ts->time_stats_sorted_list) / cpu_freq_GHz / 1000.0,
-                           get_d1(&ts->time_stats_sorted_list) / cpu_freq_GHz / 1000.0,
-                           get_q1(&ts->time_stats_sorted_list) / cpu_freq_GHz / 1000.0,
-                           get_median(&ts->time_stats_sorted_list) / cpu_freq_GHz / 1000.0,
-                           get_q3(&ts->time_stats_sorted_list) / cpu_freq_GHz / 1000.0,
-                           get_d9(&ts->time_stats_sorted_list) / cpu_freq_GHz / 1000.0);
+                           get_min(&ts->time_stats_sorted_list) / 1000.0,
+                           get_d1(&ts->time_stats_sorted_list) / 1000.0,
+                           get_q1(&ts->time_stats_sorted_list) / 1000.0,
+                           get_median(&ts->time_stats_sorted_list) / 1000.0,
+                           get_q3(&ts->time_stats_sorted_list) / 1000.0,
+                           get_d9(&ts->time_stats_sorted_list) / 1000.0);
       } else {
         output += snprintf(output,
                            end - output,
@@ -176,7 +175,7 @@ size_t print_meas_log(time_stats_t *ts,
                            name,
                            ts->diff / ts->trials / 1000.0,
                            ts->max / 1000.0,
-                           get_std_dev(ts, cpu_freq_GHz),
+                           get_std_dev(ts),
                            ts->trials);
       }
     } else {

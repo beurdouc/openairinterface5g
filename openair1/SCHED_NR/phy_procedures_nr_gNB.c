@@ -1161,24 +1161,14 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     // LOG_M("rxdataF_ext.m","rxF_ext",gNB->pusch_vars[0]->rxdataF_ext[0],6900,1,1);
   }
 
-  /* Do ULSCH decoding time measurement only when number of PUSCH is limited to 1
-   * (valid for unitary physical simulators). ULSCH processing lopp is then executed
-   * only once, which ensures exactly one start and stop of the ULSCH decoding time
-   * measurement per processed TB.*/
-  if (gNB->max_nb_pusch == 1)
-    start_meas(&gNB->ulsch_decoding_stats);
+  start_meas(&gNB->ulsch_decoding_stats);
 
   int const ret_nr_ulsch_procedures = nr_ulsch_procedures(gNB, frame_rx, slot_rx, ulsch_to_decode, UL_INFO);
   if (ret_nr_ulsch_procedures != 0) {
     LOG_E(PHY,"Error in nr_ulsch_procedures, returned %d\n",ret_nr_ulsch_procedures);
   }
 
-  /* Do ULSCH decoding time measurement only when number of PUSCH is limited to 1
-   * (valid for unitary physical simulators). ULSCH processing loop is then executed
-   * only once, which ensures exactly one start and stop of the ULSCH decoding time
-   * measurement per processed TB.*/
-  if (gNB->max_nb_pusch == 1)
-    stop_meas(&gNB->ulsch_decoding_stats);
+  stop_meas(&gNB->ulsch_decoding_stats);
 
   for (int i = 0; i < gNB->max_nb_srs; i++) {
     NR_gNB_SRS_t *srs = &gNB->srs[i];

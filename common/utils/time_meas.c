@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LicenseRef-CSSL-1.0
  */
 #define _GNU_SOURCE
+#define DICHOTOMY
 #include <stdio.h>
 #include "time_meas.h"
 #include <math.h>
@@ -382,7 +383,19 @@ void insert_in_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorte
     if (time_stats_sorted_list->nb_elm < time_stats_sorted_list->size) {
       unsigned int i = 0;
 #ifdef DICHOTOMY
-      //TODO
+      unsigned int low = 0;
+      unsigned int high = time_stats_sorted_list->nb_elm;
+      bool converged = false;
+      while (!converged) {
+        i = (high + low) / 2;
+        if (i > 0 && time_stats_sorted_list->list[i - 1] > time) {
+          high = i - 1;
+        } else if (i < time_stats_sorted_list->nb_elm && time_stats_sorted_list->list[i] < time) {
+          low = i + 1;
+        } else {
+          converged = true;
+        }
+      }
 #else
       for (; i < time_stats_sorted_list->nb_elm && time_stats_sorted_list->list[i] < time; i++);
 #endif
@@ -425,7 +438,19 @@ void merge_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stat
       unsigned int j = 0;
       for (unsigned int i = 0; i < src->nb_elm; i++) {
 #ifdef DICHOTOMY
-        //TODO
+        unsigned int low = j + 1;
+        unsigned int high = dst->nb_elm;
+        bool converged = false;
+        while (!converged) {
+          j = (high + low) / 2;
+          if (j > 0 && dst->list[j - 1] > src->list[i]) {
+            high = j - 1;
+          } else if (j < dst->nb_elm && dst->list[j] < src->list[i]) {
+            low = j + 1;
+          } else {
+            converged = true;
+          }
+        }
 #else
         for (; j < dst->nb_elm && dst->list[j] < src->list[i]; j++);
 #endif

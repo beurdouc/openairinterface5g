@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LicenseRef-CSSL-1.0
  */
 #define _GNU_SOURCE
+#define BINARY_SEARCH
 #include <stdio.h>
 #include "time_meas.h"
 #include <math.h>
@@ -427,6 +428,34 @@ void reset_time_stats_sorted_list(time_stats_sorted_list_t *list)
   list->nb_elm = 0;
 }
 
+#ifdef BINARY_SEARCH
+/**
+ * \brief searches an index in sorted list dst
+ * between low_bound and high_bound to insert value
+ * \param value value to search an index for
+ * \param dst destination sorted list
+ * \param low_bound lower bound for binary search
+ * \param high_bound higher bound for binary search
+ */
+static inline unsigned int binary_search(oai_cputime_t value, time_stats_sorted_list_t *dst, unsigned int low_bound, unsigned int high_bound) {
+  unsigned int low = low_bound;
+  unsigned int high = high_bound;
+  bool converged = false;
+  unsigned int i;
+  while (!converged) {
+    i = (high + low) / 2;
+    if (i > 0 && dst->list[i - 1] > value) {
+      high = i - 1;
+    } else if (i < dst->nb_elm && dst->list[i] < value) {
+      low = i + 1;
+    } else {
+      converged = true;
+    }
+  }
+  return i;
+}
+#endif
+
 /**
  * \brief inserts value sorted list
  * if dst is not initialized then does nothing
@@ -442,7 +471,7 @@ void insert_in_time_stats_sorted_list(time_stats_sorted_list_t *list, oai_cputim
   if (list->nb_elm < list->size) {
       unsigned int i = 0;
 #ifdef BINARY_SEARCH
-      //TODO
+      i = binary_search(time, list, 0, list->nb_elm);
 #else
       for (; i < list->nb_elm && list->list[i] < time; i++);
 #endif
@@ -491,7 +520,7 @@ void merge_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stat
       unsigned int j = 0;
       for (unsigned int i = 0; i < src->nb_elm; i++) {
 #ifdef BINARY_SEARCH
-        //TODO
+        j = binary_search(src->list[i], dst, j + 1, dst->nb_elm);
 #else
         for (; j < dst->nb_elm && dst->list[j] < src->list[i]; j++);
 #endif

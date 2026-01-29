@@ -127,28 +127,41 @@ void print_meas(time_stats_t *ts,
 size_t print_meas_log_header(time_stats_t *total_exec_time,
                              time_stats_t *sf_exec_time,
                              char *output,
-                             size_t outputlen)
+                             size_t outputlen,
+                             int cpu_meas_enabled)
 {
   const char *begin = output;
   const char *end = output + outputlen;
 
   if ((total_exec_time == NULL) || (sf_exec_time== NULL))
-    output += snprintf(output,
-                       end - output,
-                       "%25s   %18s  %18s  %18s  %15s  %18s  %18s  %18s  %18s  %18s  %18s %9s %6f\n",
-                       "Name",
-                       "Total",
-                       "Max",
-                       "Std",
-                       "Num Trials",
-                       "min",
-                       "d1",
-                       "q1",
-                       "median",
-                       "q3",
-                       "d9",
-                       "CPU_F_GHz",
-                       cpu_freq_GHz);
+    if(cpu_meas_enabled == TIME_STATS_ADVANCED_MODE)
+      output += snprintf(output,
+                         end - output,
+                         "%25s   %18s  %18s  %18s  %15s  %18s  %18s  %18s  %18s  %18s  %18s %9s %6f\n",
+                         "Name",
+                         "Total",
+                         "Max",
+                         "Std",
+                         "Num Trials",
+                         "min",
+                         "d1",
+                         "q1",
+                         "median",
+                         "q3",
+                         "d9",
+                         "CPU_F_GHz",
+                         cpu_freq_GHz);
+    else
+      output += snprintf(output,
+                         end - output,
+                         "%25s   %18s  %18s  %18s  %15s %9s %6f\n",
+                         "Name",
+                         "Total",
+                         "Max",
+                         "Std",
+                         "Num Trials",
+                         "CPU_F_GHz",
+                         cpu_freq_GHz);
   else
     output += snprintf(output,
                        end - output,

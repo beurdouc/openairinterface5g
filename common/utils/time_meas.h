@@ -189,7 +189,8 @@ void print_meas(time_stats_t *ts, const char *name, time_stats_t *total_exec_tim
 size_t print_meas_log_header(time_stats_t *total_exec_time,
                              time_stats_t *sf_exec_time,
                              char *output,
-                             size_t outputlen);
+                             size_t outputlen,
+                             int cpu_meas_enabled);
 size_t print_meas_log(time_stats_t *ts,
                       const char *name,
                       time_stats_t *total_exec_time,
@@ -327,6 +328,9 @@ static inline void merge_meas(time_stats_t *dst_ts, const time_stats_t *src_ts)
     dst_ts->max = src_ts->max;
   merge_time_stats_sorted_list(&dst_ts->time_stats_sorted_list, &src_ts->time_stats_sorted_list);
 }
+
+
+#define TIME_STATS_ADVANCED_MODE 2
 
 static inline void init_sorted_list_meas(time_stats_t *ts, unsigned int size)
 {

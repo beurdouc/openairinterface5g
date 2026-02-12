@@ -326,7 +326,11 @@ static inline void merge_meas(time_stats_t *dst_ts, const time_stats_t *src_ts)
   dst_ts->diff_square += src_ts->diff_square;
   if (src_ts->max > dst_ts->max)
     dst_ts->max = src_ts->max;
-  merge_time_stats_sorted_list(&dst_ts->time_stats_sorted_list, &src_ts->time_stats_sorted_list);
+  if (is_enabled_time_stats_sorted_list(&src_ts->time_stats_sorted_list)) {
+    merge_time_stats_sorted_list(&dst_ts->time_stats_sorted_list, &src_ts->time_stats_sorted_list);
+  } else if (src_ts->trials == 1) {
+    insert_in_time_stats_sorted_list(&dst_ts->time_stats_sorted_list, src_ts->max);
+  }
 }
 
 #define TIME_STATS_ADVANCED_MODE 2

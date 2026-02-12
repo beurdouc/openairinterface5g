@@ -243,13 +243,6 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
       segment_parameters->c = dlsch->c[r];
       segment_parameters->E = nr_get_E(TB_parameters->G, TB_parameters->C, TB_parameters->Qm, rel15->nrOfLayers, r);
 
-      init_sorted_list_meas(&segment_parameters->ts_interleave, 1);
-      init_sorted_list_meas(&segment_parameters->ts_rate_match, 1);
-      init_sorted_list_meas(&segment_parameters->ts_ldpc_encode, 1);
-      init_sorted_list_meas(&segment_parameters->tinput, 1);
-      init_sorted_list_meas(&segment_parameters->tprep, 1);
-      init_sorted_list_meas(&segment_parameters->tparity, 1);
-      init_sorted_list_meas(&segment_parameters->toutput, 1);
       reset_meas(&segment_parameters->ts_interleave);
       reset_meas(&segment_parameters->ts_rate_match);
       reset_meas(&segment_parameters->ts_ldpc_encode);
@@ -288,13 +281,6 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
         merge_meas(tparity, &segment_parameters->tparity);
         merge_meas(toutput, &segment_parameters->toutput);
       }
-      free_sorted_list_meas(&segment_parameters->ts_interleave);
-      free_sorted_list_meas(&segment_parameters->ts_rate_match);
-      free_sorted_list_meas(&segment_parameters->ts_ldpc_encode);
-      free_sorted_list_meas(&segment_parameters->tinput);
-      free_sorted_list_meas(&segment_parameters->tprep);
-      free_sorted_list_meas(&segment_parameters->tparity);
-      free_sorted_list_meas(&segment_parameters->toutput);
     }
   }
   return 0;

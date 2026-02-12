@@ -354,7 +354,7 @@ void free_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_lis
  * \brief returns true if the sorted list is enabled and false otherwise
  * \param time_stats_sorted_list sorted list to be tested
  */
-int is_enabled_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_list)
+int is_enabled_time_stats_sorted_list(const time_stats_sorted_list_t *time_stats_sorted_list)
 {
   return (time_stats_sorted_list->size > 0);
 }

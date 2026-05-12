@@ -12,7 +12,6 @@
 #include <string.h>
 #include "common/utils/assertions.h"
 #include "common/utils/nr/nr_common.h"
-#include "common/utils/var_array.h"
 #include "executables/nr-uesoftmodem.h"
 #include "executables/softmodem-common.h"
 #include "LAYER2/NR_MAC_UE/mac_defs.h"
@@ -56,7 +55,6 @@
 #include "common/ran_context.h"
 #include "common/utils/T/T.h"
 #include "common/utils/nr/nr_common.h"
-#include "common/utils/var_array.h"
 #include "e1ap_messages_types.h"
 #include "fapi_nr_ue_interface.h"
 #include "nfapi_interface.h"
@@ -1064,10 +1062,10 @@ int main(int argc, char **argv)
   time_stats_t channel_stats = {0};
   time_stats_t noise_stats = {0};
   time_stats_t pipeline_stats = {0};
+  init_sorted_list_meas(&gNB->phy_proc_tx, num_rounds * n_trials);
 
   for (SNR = snr0; SNR < snr1 && !stop; SNR += .2) {
 
-    varArray_t *table_tx=initVarArray(1000,sizeof(double));
     reset_meas(&gNB->phy_proc_tx);
     reset_meas(&gNB->dlsch_scrambling_stats);
     reset_meas(&gNB->dlsch_interleaving_stats);
@@ -1464,7 +1462,7 @@ int main(int argc, char **argv)
              g_mcsIndex,
              UE->dl_harq_processes[0][slot].C,
              8 * pdsch_pdu_rel15->TBSize[0]);
-      printDistribution(&gNB->phy_proc_tx,table_tx,"PHY proc tx");
+      printDistribution(&gNB->phy_proc_tx, "PHY proc tx");
       printStatIndent2(&gNB->dci_generation_stats, "DCI encoding time");
       printStatIndent2(&gNB->dlsch_encoding_stats,"DLSCH encoding time");
       printStatIndent3(&gNB->dlsch_crc_stats,"DLSCH Outer CRC time");
@@ -1563,6 +1561,7 @@ int main(int argc, char **argv)
 
   } // NSR
 
+  free_sorted_list_meas(&gNB->phy_proc_tx);
   free(Sched_INFO);
 
   free_channel_desc_scm(gNB2UE);

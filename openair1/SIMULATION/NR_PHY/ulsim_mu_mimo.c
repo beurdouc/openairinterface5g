@@ -12,7 +12,6 @@
 #include <errno.h>
 #include <bits/getopt_core.h>
 #include "common/utils/nr/nr_common.h"
-#include "common/utils/var_array.h"
 #define inMicroS(a) (((double)(a)) / (get_cpu_freq_GHz() * 1000.0))
 #include "SIMULATION/LTE_PHY/common_sim.h"
 #include "common/utils/assertions.h"
@@ -751,6 +750,7 @@ int main(int argc, char *argv[])
 
   time_stats_t channel_stats = {0};
   time_stats_t noise_stats = {0};
+  init_sorted_list_meas(&gNB->phy_proc_rx, max_rounds * n_trials);
   uint32_t errors_decoding = 0;
 
   uint16_t pdu_bit_map = PUSCH_PDU_BITMAP_PUSCH_DATA;
@@ -869,8 +869,6 @@ int main(int argc, char *argv[])
 
   int ret = 1;
   for (SNR = snr0; SNR <= snr1 && !stop; SNR += snr_step) {
-    varArray_t *table_rx = initVarArray(1000, sizeof(double));
-
     reset_meas(&gNB->phy_proc_rx);
     reset_meas(&gNB->rx_pusch_stats);
     reset_meas(&gNB->rx_pusch_init_stats);
@@ -1428,7 +1426,7 @@ int main(int argc, char *argv[])
       }
 
       printf("\ngNB RX\n");
-      printDistribution(&gNB->phy_proc_rx, table_rx, "Total PHY proc rx");
+      printDistribution(&gNB->phy_proc_rx, "Total PHY proc rx");
       printStatIndent(&gNB->rx_pusch_stats, "RX PUSCH time");
       printStatIndent2(&gNB->ulsch_channel_estimation_stats, "ULSCH channel estimation time");
       printStatIndent3(&gNB->pusch_channel_estimation_antenna_processing_stats, "Antenna Processing time");
@@ -1455,8 +1453,6 @@ int main(int argc, char *argv[])
       printStatIndent(&noise_stats, "Add Noise (CPU)");
       printf("\n");
     }
-
-    freeVarArray(table_rx);
 
     if (n_trials == 1)
       break;
@@ -1487,6 +1483,7 @@ int main(int argc, char *argv[])
       length_dmrs,
       num_dmrs_cdm_grps_no_data);
 
+  free_sorted_list_meas(&gNB->phy_proc_rx);
   free_MIB_NR(mib);
 
   free_nrLDPC_coding_interface(&gNB->nrLDPC_coding_interface);

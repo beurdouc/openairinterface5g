@@ -44,6 +44,10 @@
 #include "T.h"
 #include "instrumentation.h"
 
+#ifdef LDPC_CUDA
+#include <cuda_runtime.h>
+#endif
+
 static const unsigned int gain_table[31] = {100,  112,  126,  141,  158,  178,  200,  224,  251, 282,  316,
                                             359,  398,  447,  501,  562,  631,  708,  794,  891, 1000, 1122,
                                             1258, 1412, 1585, 1778, 1995, 2239, 2512, 2818, 3162};
@@ -1170,7 +1174,13 @@ void pdsch_processing(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_
   }
 
   const int actor_idx_llr = proc->nr_slot_rx % ue->pdsch_num_actors;
-  int16_t **llr = ue->pdsch_scratch[actor_idx_llr].llr;
+  int16_t **llr;
+#ifdef LDPC_CUDA
+  // TODO CHECK THIS: should be per actor?
+  llr = ue->llr_dev[nr_slot_rx % 10];
+#else
+  llr = ue->pdsch_scratch[actor_idx_llr].llr;
+#endif
   fapi_nr_dl_config_dlsch_pdu_rel15_t *dlsch_config = &phy_data->dlsch_config;
   for (int c = 0; c < phy_data->n_dlsch_codewords; c++) {
     NR_UE_DLSCH_t *dlsch = &phy_data->dlsch[c];
@@ -1254,7 +1264,6 @@ void pdsch_processing(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_
              sizeof(int32_t) * nb_symb_sch * ue->frame_parms.ofdm_symbol_size);
     if (ue->phy_sim_pdsch_llr)
       memcpy(ue->phy_sim_pdsch_llr, llr[c], sizeof(int16_t) * rx_llr_buf_sz);
-
   }
 
   if (nr_slot_rx==9) {

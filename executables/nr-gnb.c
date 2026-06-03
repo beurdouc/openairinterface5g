@@ -96,7 +96,9 @@ static void tx_func(processingData_L1tx_t *info)
   if (tx_slot_type == NR_DOWNLINK_SLOT || tx_slot_type == NR_MIXED_SLOT || get_softmodem_params()->continuous_tx
       || IS_SOFTMODEM_RFSIM || cfg->analog_beamforming_ve.analog_bf_vendor_ext.value) {
     start_meas_on_dl(&info->gNB->phy_proc_tx, tx_slot_type);
+    start_meas_on_dl(&info->gNB->gnb_tx_procedures_stats, tx_slot_type);
     phy_procedures_gNB_TX(info->gNB, &sched_response.DL_req, &sched_response.TX_req, &sched_response.UL_dci_req, frame_tx,slot_tx);
+    stop_meas_on_dl(&info->gNB->gnb_tx_procedures_stats, tx_slot_type);
 
     PHY_VARS_gNB *gNB = info->gNB;
     processingData_RU_t syncMsgRU;
@@ -105,7 +107,12 @@ static void tx_func(processingData_L1tx_t *info)
     syncMsgRU.ru = gNB->RU_list[0];
     syncMsgRU.timestamp_tx = info->timestamp_tx;
     LOG_D(PHY, "gNB: %d.%d : calling RU TX function\n", syncMsgRU.frame_tx, syncMsgRU.slot_tx);
+
+    start_meas_on_dl(&info->gNB->ru_tx_func_stats, tx_slot_type);
+
     ru_tx_func((void *)&syncMsgRU);
+
+    stop_meas_on_dl(&info->gNB->ru_tx_func_stats, tx_slot_type);
     stop_meas_on_dl(&info->gNB->phy_proc_tx, tx_slot_type);
   }
 }
@@ -213,6 +220,8 @@ static void nrL1_stats_init_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru, unsigned in
   init_sorted_list_meas(&gNB->l1_tx_proc, size);
   init_sorted_list_meas(&gNB->l1_rx_proc, size);
   init_sorted_list_meas(&gNB->phy_proc_tx, size);
+  init_sorted_list_meas(&gNB->gnb_tx_procedures_stats, size);
+  init_sorted_list_meas(&gNB->ru_tx_func_stats, size);
   init_sorted_list_meas(&gNB->dlsch_encoding_stats, size);
   init_sorted_list_meas(&gNB->tinput, size);
   init_sorted_list_meas(&gNB->tprep, size);
@@ -252,6 +261,8 @@ static void nrL1_stats_free_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru)
   free_sorted_list_meas(&gNB->l1_tx_proc);
   free_sorted_list_meas(&gNB->l1_rx_proc);
   free_sorted_list_meas(&gNB->phy_proc_tx);
+  free_sorted_list_meas(&gNB->gnb_tx_procedures_stats);
+  free_sorted_list_meas(&gNB->ru_tx_func_stats);
   free_sorted_list_meas(&gNB->dlsch_encoding_stats);
   free_sorted_list_meas(&gNB->dlsch_segmentation_stats);
   free_sorted_list_meas(&gNB->tinput);
@@ -292,6 +303,8 @@ static void nrL1_stats_reset(PHY_VARS_gNB *gNB, RU_t *ru)
   reset_meas(&gNB->l1_tx_proc);
   reset_meas(&gNB->l1_rx_proc);
   reset_meas(&gNB->phy_proc_tx);
+  reset_meas(&gNB->gnb_tx_procedures_stats);
+  reset_meas(&gNB->ru_tx_func_stats);
   reset_meas(&gNB->dlsch_encoding_stats);
   reset_meas(&gNB->dlsch_segmentation_stats);
   reset_meas(&gNB->tinput);
@@ -335,6 +348,19 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
   output += print_meas_log(&gNB->l1_tx_proc, "L1 Tx job", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->l1_rx_proc, "L1 Rx job", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->phy_proc_tx, "L1 Tx processing", NULL, NULL, output, end - output);
+  output += print_meas_log(&gNB->gnb_tx_procedures_stats,
+                           "L1 gNB TX procedures",
+                           NULL,
+                           NULL,
+                           output,
+                           end - output);
+
+  output += print_meas_log(&gNB->ru_tx_func_stats,
+                           "L1 RU TX function",
+                           NULL,
+                           NULL,
+                           output,
+                           end - output);
   output += print_meas_log(&gNB->dlsch_encoding_stats, "DLSCH encoding", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_segmentation_stats,  "DL segment segmentation", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->tinput, "DL encoding input", NULL, NULL, output, end - output);

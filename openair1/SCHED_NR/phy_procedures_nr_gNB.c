@@ -296,26 +296,24 @@ void phy_procedures_gNB_TX(PHY_VARS_gNB *gNB,
     start_meas(&gNB->phase_comp_stats);
   }
 
-  for (int i = 0; i < gNB->common_vars.num_beams_period; ++i) {
-    for (int aa = 0; aa < cfg->carrier_config.num_tx_ant.value; aa++) {
-      if (gNB->phase_comp) {
-        apply_nr_rotation_TX(fp,
-                             gNB->common_vars.txdataF[i][aa],
-                             true,
-                             fp->symbol_rotation[0],
-                             slot,
-                             fp->N_RB_DL,
-                             0,
-                             fp->Ncp == NR_EXTENDED ? 12 : 14);
-      }
-
-      T(T_GNB_PHY_DL_OUTPUT_SIGNAL,
-        T_INT(0),
-        T_INT(frame),
-        T_INT(slot),
-        T_INT(aa),
-        T_BUFFER(gNB->common_vars.txdataF[i][aa], fp->samples_per_slot_wCP * sizeof(int32_t)));
+  for (int aa = 0; aa < fp->nb_antennas_tx; aa++) {
+    if (gNB->phase_comp) {
+      apply_nr_rotation_TX(fp,
+                           gNB->common_vars.txdataF[aa],
+                           true,
+                           fp->symbol_rotation[0],
+                           slot,
+                           fp->N_RB_DL,
+                           0,
+                           fp->Ncp == NR_EXTENDED ? 12 : 14);
     }
+
+    T(T_GNB_PHY_DL_OUTPUT_SIGNAL,
+      T_INT(0),
+      T_INT(frame),
+      T_INT(slot),
+      T_INT(aa),
+      T_BUFFER(gNB->common_vars.txdataF[aa], fp->samples_per_slot_wCP * sizeof(int32_t)));
   }
 
   if (slot_type == NR_DOWNLINK_SLOT) {

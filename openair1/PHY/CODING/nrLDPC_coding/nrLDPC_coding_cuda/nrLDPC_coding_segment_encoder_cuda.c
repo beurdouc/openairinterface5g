@@ -816,7 +816,6 @@ static void ldpcnblocks(nrLDPC_TB_encoding_parameters_t *nrLDPC_TB_encoding_para
   // Interleaver outputs are stored in the output arrays
   uint8_t *output = nrLDPC_TB_encoding_parameters->output;
 
-  start_meas(&nrLDPC_TB_encoding_parameters->segments[0].ts_rate_match);
   memset(e,0,sizeof(e));
   memset(f,0,sizeof(f));
   if (1/*r_shift < n_seg2*/) { 
@@ -853,7 +852,6 @@ static void ldpcnblocks(nrLDPC_TB_encoding_parameters_t *nrLDPC_TB_encoding_para
     }
     */
   }
-  stop_meas(&nrLDPC_TB_encoding_parameters->segments[0].ts_rate_match);
   if (impp.K - impp.F - 2 * impp.Zc > E) {
     LOG_E(PHY,
           "dlsch coding A %d  Kr %d G %d (nb_rb %d, mod_order %d)\n",
@@ -877,7 +875,6 @@ static void ldpcnblocks(nrLDPC_TB_encoding_parameters_t *nrLDPC_TB_encoding_para
   }
   
   //printf("interleaving r_shift %d, n_seg2 %d\n",r_shift,n_seg2);
-  start_meas(&nrLDPC_TB_encoding_parameters->segments[0].ts_interleave);
   
   for (int r=0;r<=r_shift;r++)
     nr_interleaving_ldpc32(E,
@@ -895,7 +892,6 @@ static void ldpcnblocks(nrLDPC_TB_encoding_parameters_t *nrLDPC_TB_encoding_para
   printf("-------------------\n");
   for (int i=E2-16;i<E2;i++) printf("intl (f offset %d): %x %x\n",(n_seg2-1)*E2,e2[((n_seg2-1)*E2)+i],f2[((n_seg2-1)*E2)+i]);
   */
-  stop_meas(&nrLDPC_TB_encoding_parameters->segments[0].ts_interleave);
 
   if (impp.toutput) start_meas(impp.toutput);
   unpack_output(f,E,f2,E2,r_shift,r_shift2,nrLDPC_TB_encoding_parameters->C,output);
@@ -909,10 +905,6 @@ int nrLDPC_coding_encoder32(nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encod
 
     encoder_implemparams_t common_segment_params = {
       .n_segments = nrLDPC_TB_encoding_parameters->C,
-      .tinput = &nrLDPC_TB_encoding_parameters->segments[0].tinput,
-      .tprep = &nrLDPC_TB_encoding_parameters->segments[0].tprep,
-      .tparity = &nrLDPC_TB_encoding_parameters->segments[0].tparity,
-      .toutput = &nrLDPC_TB_encoding_parameters->segments[0].toutput,
       .Kb = nrLDPC_TB_encoding_parameters->Kb,
       .Zc = nrLDPC_TB_encoding_parameters->Z,
       .BG = nrLDPC_TB_encoding_parameters->BG,

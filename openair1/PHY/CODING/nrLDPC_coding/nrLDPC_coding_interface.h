@@ -109,24 +109,12 @@ typedef struct nrLDPC_slot_decoding_parameters_s{
  * \var E input llr segment size
  * \var c Pointers to code blocks before LDPC encoding (38.212 V15.4.0 section 5.2.2)
  * IT MUST BE FILLED BY THE IMPLEMENTATION
- * \var ts_interleave interleaving time stats
- * \var ts_rate_match rate matching time stats
  * \var ts_ldpc_encode encoding time stats
- * \var tinput pointer to the input timer struct
- * \var tprep pointer to the preparation timer struct
- * \var tparity pointer to the parity timer struct
- * \var toutput pointer to the output timer struct
  */
 typedef struct nrLDPC_segment_encoding_parameters_s{
   int E;
   uint8_t *c;
-  time_stats_t ts_interleave;
-  time_stats_t ts_rate_match;
   time_stats_t ts_ldpc_encode;
-  time_stats_t tinput;
-  time_stats_t tprep;
-  time_stats_t tparity;
-  time_stats_t toutput;
 } nrLDPC_segment_encoding_parameters_t;
 
 /**

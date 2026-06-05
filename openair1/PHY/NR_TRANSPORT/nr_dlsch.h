@@ -24,15 +24,7 @@ int nr_dlsch_encoding(PHY_VARS_gNB *gNB,
                       NR_gNB_DLSCH_t *dlsch_array,
                       int frame,
                       uint8_t slot,
-                      unsigned char *output,
-                      time_stats_t *tinput,
-                      time_stats_t *tprep,
-                      time_stats_t *tparity,
-                      time_stats_t *toutput,
-                      time_stats_t *dlsch_rate_matching_stats,
-                      time_stats_t *dlsch_interleaving_stats,
-                      time_stats_t *dlsch_segmentation_stats,
-                      time_stats_t *dlsch_crc_stats);
+                      unsigned char *output);
 
 void dump_pdsch_stats(FILE *fd,PHY_VARS_gNB *gNB);
 

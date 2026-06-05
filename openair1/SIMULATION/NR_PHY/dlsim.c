@@ -1071,9 +1071,6 @@ int main(int argc, char **argv)
     varArray_t *table_tx=initVarArray(1000,sizeof(double));
     reset_meas(&gNB->phy_proc_tx);
     reset_meas(&gNB->dlsch_scrambling_stats);
-    reset_meas(&gNB->dlsch_interleaving_stats);
-    reset_meas(&gNB->dlsch_rate_matching_stats);
-    reset_meas(&gNB->dlsch_segmentation_stats);
     reset_meas(&gNB->dlsch_modulation_stats);
     reset_meas(&gNB->dlsch_pdsch_generation_stats);
     reset_meas(&gNB->dlsch_precoding_stats);
@@ -1081,10 +1078,6 @@ int main(int argc, char **argv)
     reset_meas(&gNB->dlsch_resource_mapping_stats);
     reset_meas(&gNB->dlsch_encoding_stats);
     reset_meas(&gNB->dci_generation_stats);
-    reset_meas(&gNB->tinput);
-    reset_meas(&gNB->tprep);
-    reset_meas(&gNB->tparity);
-    reset_meas(&gNB->toutput);
     reset_meas(&gNB->phase_comp_stats);
 
     uint32_t errors_scrambling[16] = {0};
@@ -1467,13 +1460,6 @@ int main(int argc, char **argv)
       printDistribution(&gNB->phy_proc_tx,table_tx,"PHY proc tx");
       printStatIndent2(&gNB->dci_generation_stats, "DCI encoding time");
       printStatIndent2(&gNB->dlsch_encoding_stats,"DLSCH encoding time");
-      printStatIndent3(&gNB->dlsch_segmentation_stats,"DLSCH segmentation time");
-      printStatIndent3(&gNB->tinput,"DLSCH LDPC input processing time");
-      printStatIndent3(&gNB->tprep,"DLSCH LDPC input preparation time");
-      printStatIndent3(&gNB->tparity,"DLSCH LDPC parity generation time");
-      printStatIndent3(&gNB->toutput,"DLSCH LDPC output generation time");
-      printStatIndent3(&gNB->dlsch_rate_matching_stats,"DLSCH Rate Matching time");
-      printStatIndent3(&gNB->dlsch_interleaving_stats,  "DLSCH Interleaving time");
       printStatIndent2(&gNB->dlsch_modulation_stats,"DLSCH modulation time");
       printStatIndent2(&gNB->dlsch_scrambling_stats, "DLSCH scrambling time");
       printStatIndent2(&gNB->dlsch_pdsch_generation_stats,"DLSCH PDSCH Generation time");

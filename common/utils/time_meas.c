@@ -330,13 +330,26 @@ void end_meas(void) {
  */
 void init_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_list, unsigned int size)
 {
-  if (time_stats_sorted_list->size == 0) {
-    time_stats_sorted_list->list = calloc(size, sizeof(oai_cputime_t));
-    time_stats_sorted_list->size = size;
-    time_stats_sorted_list->nb_elm = 0;
-  } else {
-    AssertFatal(time_stats_sorted_list->size == 0, "Calling init_time_stats_sorted_list on initialized sorted list\n");
-  }
+  if (time_stats_sorted_list == NULL)
+    return;
+
+  AssertFatal(time_stats_sorted_list->magic != TIME_STATS_SORTED_LIST_MAGIC,
+              "Calling init_time_stats_sorted_list on initialized sorted list\n");
+
+  time_stats_sorted_list->size = 0;
+  time_stats_sorted_list->nb_elm = 0;
+  time_stats_sorted_list->list = NULL;
+  time_stats_sorted_list->magic = 0;
+
+  if (size == 0)
+    return;
+
+  time_stats_sorted_list->list = calloc(size, sizeof(oai_cputime_t));
+  AssertFatal(time_stats_sorted_list->list != NULL, "Could not allocate sorted list for time stats\n");
+
+  time_stats_sorted_list->size = size;
+  time_stats_sorted_list->nb_elm = 0;
+  time_stats_sorted_list->magic = TIME_STATS_SORTED_LIST_MAGIC;
 }
 /**
  * \brief free sorted list
@@ -345,10 +358,16 @@ void init_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_lis
  */
 void free_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0) {
+  if (time_stats_sorted_list == NULL)
+    return;
+
+  if (time_stats_sorted_list->magic == TIME_STATS_SORTED_LIST_MAGIC && time_stats_sorted_list->list != NULL)
     free(time_stats_sorted_list->list);
-    time_stats_sorted_list->size = 0;
-  }
+
+  time_stats_sorted_list->size = 0;
+  time_stats_sorted_list->nb_elm = 0;
+  time_stats_sorted_list->magic = 0;
+  time_stats_sorted_list->list = NULL;
 }
 /**
  * \brief returns true if the sorted list is enabled and false otherwise
@@ -356,7 +375,11 @@ void free_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_lis
  */
 int is_enabled_time_stats_sorted_list(const time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  return (time_stats_sorted_list->size > 0);
+  return time_stats_sorted_list != NULL
+         && time_stats_sorted_list->magic == TIME_STATS_SORTED_LIST_MAGIC
+         && time_stats_sorted_list->size > 0
+         && time_stats_sorted_list->list != NULL
+         && time_stats_sorted_list->nb_elm <= time_stats_sorted_list->size;
 }
 /**
  * \brief empties sorted list
@@ -365,9 +388,10 @@ int is_enabled_time_stats_sorted_list(const time_stats_sorted_list_t *time_stats
  */
 void reset_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0) {
-    time_stats_sorted_list->nb_elm = 0;
-  }
+  if (!is_enabled_time_stats_sorted_list(time_stats_sorted_list))
+    return;
+
+  time_stats_sorted_list->nb_elm = 0;
 }
 /**
  * \brief inserts value sorted list
@@ -378,8 +402,10 @@ void reset_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_li
  */
 void insert_in_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorted_list, oai_cputime_t time)
 {
-  if (time_stats_sorted_list->size > 0) {
-    if (time_stats_sorted_list->nb_elm < time_stats_sorted_list->size) {
+  if (!is_enabled_time_stats_sorted_list(time_stats_sorted_list))
+    return;
+
+  if (time_stats_sorted_list->nb_elm < time_stats_sorted_list->size) {
       unsigned int i = 0;
 #ifdef DICHOTOMY
       unsigned int low = 0;
@@ -402,7 +428,6 @@ void insert_in_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorte
       memmove(&time_stats_sorted_list->list[i+1], &time_stats_sorted_list->list[i], (time_stats_sorted_list->nb_elm - i) * sizeof(oai_cputime_t));
       time_stats_sorted_list->list[i] = time;
       time_stats_sorted_list->nb_elm++;
-    }
   }
 }
 /**
@@ -414,14 +439,19 @@ void insert_in_time_stats_sorted_list(time_stats_sorted_list_t *time_stats_sorte
  */
 void copy_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stats_sorted_list_t *src)
 {
-  if (dst->size > 0 && src->size > 0) {
-    if (dst->size != src->size) {
-      free_time_stats_sorted_list(dst);
-      init_time_stats_sorted_list(dst, src->size);
-    }
-    memcpy(dst->list, src->list, src->nb_elm * sizeof(oai_cputime_t));
-    dst->nb_elm = src->nb_elm;
+  if (!is_enabled_time_stats_sorted_list(dst) || !is_enabled_time_stats_sorted_list(src))
+    return;
+
+  if (dst->size != src->size) {
+    free_time_stats_sorted_list(dst);
+    init_time_stats_sorted_list(dst, src->size);
   }
+
+  if (!is_enabled_time_stats_sorted_list(dst))
+    return;
+
+  memcpy(dst->list, src->list, src->nb_elm * sizeof(oai_cputime_t));
+  dst->nb_elm = src->nb_elm;
 }
 /**
  * \brief inserts the content of sorted list src into dst
@@ -432,7 +462,7 @@ void copy_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stats
  */
 void merge_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stats_sorted_list_t *src)
 {
-  if (dst->size > 0 && src->size > 0) {
+  if (is_enabled_time_stats_sorted_list(dst) && is_enabled_time_stats_sorted_list(src)) {
     if ((dst->size - dst->nb_elm) >= src->nb_elm) {
       unsigned int j = 0;
       for (unsigned int i = 0; i < src->nb_elm; i++) {
@@ -469,11 +499,10 @@ void merge_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stat
  */
 oai_cputime_t get_min(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0 && time_stats_sorted_list->nb_elm > 0) {
+  if (is_enabled_time_stats_sorted_list(time_stats_sorted_list) && time_stats_sorted_list->nb_elm > 0)
     return time_stats_sorted_list->list[0];
-  } else {
-    return -1;
-  }
+
+  return -1;
 }
 /**
  * \brief get the median from a sorted list
@@ -482,11 +511,10 @@ oai_cputime_t get_min(time_stats_sorted_list_t *time_stats_sorted_list)
  */
 oai_cputime_t get_median(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0 && time_stats_sorted_list->nb_elm > 0) {
+  if (is_enabled_time_stats_sorted_list(time_stats_sorted_list) && time_stats_sorted_list->nb_elm > 0)
     return time_stats_sorted_list->list[time_stats_sorted_list->nb_elm / 2];
-  } else {
-    return -1;
-  }
+
+  return -1;
 }
 /**
  * \brief get the first quartile from a sorted list
@@ -495,11 +523,10 @@ oai_cputime_t get_median(time_stats_sorted_list_t *time_stats_sorted_list)
  */
 oai_cputime_t get_q1(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0 && time_stats_sorted_list->nb_elm > 0) {
+  if (is_enabled_time_stats_sorted_list(time_stats_sorted_list) && time_stats_sorted_list->nb_elm > 0)
     return time_stats_sorted_list->list[time_stats_sorted_list->nb_elm / 4];
-  } else {
-    return -1;
-  }
+
+  return -1;
 }
 /**
  * \brief get the third quartile from a sorted list
@@ -508,11 +535,10 @@ oai_cputime_t get_q1(time_stats_sorted_list_t *time_stats_sorted_list)
  */
 oai_cputime_t get_q3(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0 && time_stats_sorted_list->nb_elm > 0) {
+  if (is_enabled_time_stats_sorted_list(time_stats_sorted_list) && time_stats_sorted_list->nb_elm > 0)
     return time_stats_sorted_list->list[3 * time_stats_sorted_list->nb_elm / 4];
-  } else {
-    return -1;
-  }
+
+  return -1;
 }
 /**
  * \brief get the first decile from a sorted list
@@ -521,11 +547,10 @@ oai_cputime_t get_q3(time_stats_sorted_list_t *time_stats_sorted_list)
  */
 oai_cputime_t get_d1(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0 && time_stats_sorted_list->nb_elm > 0) {
+  if (is_enabled_time_stats_sorted_list(time_stats_sorted_list) && time_stats_sorted_list->nb_elm > 0)
     return time_stats_sorted_list->list[time_stats_sorted_list->nb_elm / 10];
-  } else {
-    return -1;
-  }
+
+  return -1;
 }
 /**
  * \brief get the nineth decile from a sorted list
@@ -534,9 +559,8 @@ oai_cputime_t get_d1(time_stats_sorted_list_t *time_stats_sorted_list)
  */
 oai_cputime_t get_d9(time_stats_sorted_list_t *time_stats_sorted_list)
 {
-  if (time_stats_sorted_list->size > 0 && time_stats_sorted_list->nb_elm > 0) {
+  if (is_enabled_time_stats_sorted_list(time_stats_sorted_list) && time_stats_sorted_list->nb_elm > 0)
     return time_stats_sorted_list->list[9 * time_stats_sorted_list->nb_elm / 10];
-  } else {
-    return -1;
-  }
+
+  return -1;
 }

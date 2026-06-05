@@ -186,10 +186,7 @@ static void inner_rx(PHY_VARS_gNB *gNB,
                      int output_shift,
                      uint32_t nvar,
                      c16_t *rxFext_slot,
-                     c16_t *chFext_slot,
-                     time_stats_t *pusch_extr,
-                     time_stats_t *pusch_ch_comp,
-                     time_stats_t *ulsch_llr)
+                     c16_t *chFext_slot)
 {
   int nb_layer = rel15_ul->nrOfLayers;
   int nb_rx_ant = rel15_ul->param_v4.numSpatialStreamIndices;
@@ -210,7 +207,6 @@ static void inner_rx(PHY_VARS_gNB *gNB,
 
   for (int aarx = 0; aarx < nb_rx_ant; aarx++) {
     for (int aatx = 0; aatx < nb_layer; aatx++) {
-      start_meas(pusch_extr);
       nr_ulsch_extract_rbs(rxF[aarx],
                            (c16_t *)pusch_vars->ul_ch_estimates[aatx * nb_rx_ant + aarx],
                            rxFext[aarx],
@@ -220,7 +216,6 @@ static void inner_rx(PHY_VARS_gNB *gNB,
                            dmrs_symbol_flag, 
                            rel15_ul,
                            frame_parms);
-      stop_meas(pusch_extr);
 #if T_TRACER
       // Data Recording application supports only 1 layer and 1 Tx antenna, so only record the first layer and first Tx antenna
       if (aatx == 0 && aarx == 0) {
@@ -236,7 +231,6 @@ static void inner_rx(PHY_VARS_gNB *gNB,
 #endif
     }
   }
-  start_meas(pusch_ch_comp);
   c16_t rho[nb_layer][nb_layer][buffer_length] __attribute__((aligned(64)));
   c16_t rxF_ch_maga[nb_layer][buffer_length] __attribute__((aligned(64)));
   c16_t rxF_ch_magb[nb_layer][buffer_length] __attribute__((aligned(64)));
@@ -259,7 +253,6 @@ static void inner_rx(PHY_VARS_gNB *gNB,
                           rel15_ul->qam_mod_order,
                           symbol,
                           output_shift);
-  stop_meas(pusch_ch_comp);
 
   if (nb_layer == 1 && rel15_ul->transform_precoding == transformPrecoder_enabled && rel15_ul->qam_mod_order <= 6) {
     if (rel15_ul->qam_mod_order > 2)
@@ -282,7 +275,6 @@ static void inner_rx(PHY_VARS_gNB *gNB,
     nr_pusch_ptrs_processing(gNB, frame_parms, rel15_ul, pusch_vars, slot, symbol, 1, buffer_length);
     pusch_vars->ul_valid_re_per_slot[symbol] -= pusch_vars->ptrs_re_per_slot;
   }
-  start_meas(ulsch_llr);
   if (nb_layer == 2) {
     if (rel15_ul->qam_mod_order <= 6) {
       nr_compute_ML_llr((c16_t *)&pusch_vars->rxdataF_comp[0][symbol * buffer_length],
@@ -323,7 +315,6 @@ static void inner_rx(PHY_VARS_gNB *gNB,
                      pusch_vars->ul_valid_re_per_slot[symbol],
                      symbol,
                      rel15_ul->qam_mod_order);
-  stop_meas(ulsch_llr);
 }
 
 typedef struct puschSymbolProc_s {
@@ -338,11 +329,6 @@ typedef struct puschSymbolProc_s {
   int16_t *scramblingSequence;
   uint32_t nvar;
   int beam_nb;
-  time_stats_t pusch_extr;
-  time_stats_t pusch_ch_comp;
-  time_stats_t ulsch_llr;
-  time_stats_t ul_demap;
-  time_stats_t ul_unscram;
   // TODO: Remove assumption of contiguous ports after DAS is properly handled in beamforming
   uint16_t ant_port_start;
   task_ans_t *ans;
@@ -381,14 +367,10 @@ static void nr_pusch_symbol_processing(void *arg)
              pusch_vars->log2_maxh,
              rdata->nvar,
              rdata->rxFext_slot_mem,
-             rdata->pusch_ch_est_dmrs_interpl_slot_mem,
-             &rdata->pusch_extr,
-             &rdata->pusch_ch_comp,
-             &rdata->ulsch_llr);
+             rdata->pusch_ch_est_dmrs_interpl_slot_mem);
 
     int nb_re_pusch = pusch_vars->ul_valid_re_per_slot[symbol];
     // layer de-mapping
-    start_meas(&rdata->ul_demap);
     int16_t *llr_ptr = llrs[0];
     if (rel15_ul->nrOfLayers != 1) {
       llr_ptr = &rdata->llr[pusch_vars->llr_offset[symbol] * rel15_ul->nrOfLayers];
@@ -398,9 +380,7 @@ static void nr_pusch_symbol_processing(void *arg)
             llr_ptr[i * rel15_ul->nrOfLayers * rel15_ul->qam_mod_order + l * rel15_ul->qam_mod_order + m] =
                 llrss[l][i * rel15_ul->qam_mod_order + m];
     }
-    stop_meas(&rdata->ul_demap);
     // unscrambling
-    start_meas(&rdata->ul_unscram);
     int16_t *llr16 = (int16_t*)&rdata->llr[pusch_vars->llr_offset[symbol] * rel15_ul->nrOfLayers];
     int16_t *s = rdata->scramblingSequence + pusch_vars->llr_offset[symbol] * rel15_ul->nrOfLayers;
     const int end = nb_re_pusch * rel15_ul->qam_mod_order * rel15_ul->nrOfLayers;
@@ -412,7 +392,6 @@ static void nr_pusch_symbol_processing(void *arg)
     }
     for (; i < end; i++)
       llr16[i] = llr_ptr[i] * s[i];
-    stop_meas(&rdata->ul_unscram);
   }
 
   // Task running in // completed
@@ -744,11 +723,6 @@ int nr_rx_pusch_tp(PHY_VARS_gNB *gNB,
       rdata->ant_port_start = ant_port_start;
       rdata->rxFext_slot_mem = rxFext_slot_mem;
       rdata->pusch_ch_est_dmrs_interpl_slot_mem = pusch_ch_est_dmrs_interpl_slot_mem;
-      reset_meas(&rdata->pusch_extr);
-      reset_meas(&rdata->pusch_ch_comp);
-      reset_meas(&rdata->ulsch_llr);
-      reset_meas(&rdata->ul_demap);
-      reset_meas(&rdata->ul_unscram);
 
       if (rel15_ul->pdu_bit_map & PUSCH_PDU_BITMAP_PUSCH_PTRS) {
         nr_pusch_symbol_processing(rdata);
@@ -800,11 +774,6 @@ int nr_rx_pusch_tp(PHY_VARS_gNB *gNB,
   for (int i = 0; i < sz_arr; ++i) {
     // retrieve measurements
     puschSymbolProc_t *rdata = &arr[i];
-    merge_meas(&gNB->pusch_extraction_stats, &rdata->pusch_extr);
-    merge_meas(&gNB->pusch_channel_compensation_stats, &rdata->pusch_ch_comp);
-    merge_meas(&gNB->ulsch_llr_stats, &rdata->ulsch_llr);
-    merge_meas(&gNB->ulsch_layer_demapping_stats, &rdata->ul_demap);
-    merge_meas(&gNB->ulsch_unscrambling_stats, &rdata->ul_unscram);
   }
   stop_meas(&gNB->rx_pusch_symbol_processing_stats);
 

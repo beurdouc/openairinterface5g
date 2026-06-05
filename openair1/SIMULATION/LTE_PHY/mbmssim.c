@@ -1472,20 +1472,20 @@ int main(int argc, char **argv) {
       reset_meas(&UE->dlsch_tc_intl2_stats);
       // initialization
       // initialization
-      varArray_t *table_tx=initVarArray(1000,sizeof(double));
-      varArray_t *table_tx_ifft=initVarArray(1000,sizeof(double));
-      varArray_t *table_tx_mod=initVarArray(1000,sizeof(double));
-      varArray_t *table_tx_enc=initVarArray(1000,sizeof(double));
-      varArray_t *table_rx=initVarArray(1000,sizeof(double));
+      time_stats_t *table_tx = &eNB->phy_proc_tx;
+      time_stats_t *table_tx_ifft = &eNB->ofdm_mod_stats;
+      time_stats_t *table_tx_mod = &eNB->dlsch_modulation_stats;
+      time_stats_t *table_tx_enc = &eNB->dlsch_encoding_stats;
+      time_stats_t *table_rx = NULL;
       time_stats_t phy_proc_rx_tot;
       time_stats_t pdsch_procedures_tot;
       time_stats_t dlsch_procedures_tot;
       time_stats_t dlsch_decoding_tot;
       time_stats_t dlsch_llr_tot;
       time_stats_t ue_front_end_tot;
-      varArray_t *table_rx_fft=initVarArray(1000,sizeof(double));
-      varArray_t *table_rx_demod=initVarArray(1000,sizeof(double));
-      varArray_t *table_rx_dec=initVarArray(1000,sizeof(double));
+      time_stats_t *table_rx_fft = NULL;
+      time_stats_t *table_rx_demod = NULL;
+      time_stats_t *table_rx_dec = NULL;
 
       for (trials = 0; trials<n_frames; trials++) {
         //printf("Trial %d\n",trials);
@@ -1922,26 +1922,10 @@ int main(int argc, char **argv) {
 
         if (t_rx > 2000 )
           n_rx_dropped++;
-
-        appendVarArray(&table_tx, &t_tx);
-        appendVarArray(&table_tx_ifft, &t_tx_ifft);
-        appendVarArray(&table_rx, &t_rx );
-        appendVarArray(&table_rx_fft, &t_rx_fft );
-        appendVarArray(&table_rx_demod, &t_rx_demod );
-        appendVarArray(&table_rx_dec, &t_rx_dec );
       }   //trials
 
       // round_trials[0]: number of code word : goodput the protocol
       // sort table
-      qsort (dataArray(table_tx), table_tx->size, table_tx->atomSize, &cmpdouble);
-      qsort (dataArray(table_tx_ifft), table_tx_ifft->size, table_tx_ifft->atomSize, &cmpdouble);
-      qsort (dataArray(table_tx_mod), table_tx_mod->size, table_tx_mod->atomSize, &cmpdouble);
-      qsort (dataArray(table_tx_enc), table_tx_enc->size, table_tx_enc->atomSize, &cmpdouble);
-      qsort (dataArray(table_rx), table_rx->size, table_rx->atomSize, &cmpdouble);
-      qsort (dataArray(table_rx_fft), table_rx_fft->size, table_rx_fft->atomSize, &cmpdouble);
-      qsort (dataArray(table_rx_demod), table_rx_demod->size, table_rx_demod->atomSize, &cmpdouble);
-      qsort (dataArray(table_rx_dec), table_rx_dec->size, table_rx_dec->atomSize, &cmpdouble);
-
       if (dump_table == 1 ) {
         set_component_filelog(SIM);  // file located in /tmp/usim.txt
         LOG_UDUMPMSG(SIM,table_tx,table_tx->size,LOG_DUMP_DOUBLE,"The transmitter raw data: \n");
@@ -1980,7 +1964,7 @@ int main(int argc, char **argv) {
 
       if (print_perf==1) {
         printf("\neNB TX function statistics (per 1ms subframe)\n");
-        printDistribution(&eNB->phy_proc_tx,table_tx,"PHY proc tx");
+        printDistribution(&eNB->phy_proc_tx, "PHY proc tx");
         printStatIndent(&eNB->dlsch_common_and_dci,"DL common channels and dci time");
         printStatIndent(&eNB->dlsch_ue_specific,"DL per ue part time");
         printStatIndent2(&eNB->dlsch_encoding_stats,"DLSCH encoding time");
@@ -1989,9 +1973,9 @@ int main(int argc, char **argv) {
         printStatIndent3(&eNB->dlsch_interleaving_stats,"DLSCH interleaving time");
         printStatIndent2(&eNB->dlsch_scrambling_stats,  "DLSCH scrambling time");
         printStatIndent2(&eNB->dlsch_modulation_stats, "DLSCH modulation time");
-        printDistribution(&eNB->ofdm_mod_stats,table_tx_ifft,"OFDM_mod (idft) time");
+        printDistribution(&eNB->ofdm_mod_stats, "OFDM_mod (idft) time");
         printf("\nUE RX function statistics (per 1ms subframe)\n");
-        printDistribution(&phy_proc_rx_tot, table_rx,"Total PHY proc rx");
+        printDistribution(&phy_proc_rx_tot, "Total PHY proc rx");
         printStatIndent(&ue_front_end_tot,"Front end processing");
         printStatIndent(&dlsch_llr_tot,"rx_pdsch processing");
         printStatIndent2(&pdsch_procedures_tot,"pdsch processing");

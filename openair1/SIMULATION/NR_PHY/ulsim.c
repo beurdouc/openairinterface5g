@@ -12,7 +12,6 @@
 #include <errno.h>
 #include <bits/getopt_core.h>
 #include "common/utils/nr/nr_common.h"
-#include "common/utils/var_array.h"
 #define inMicroS(a) (((double)(a))/(get_cpu_freq_GHz()*1000.0))
 #include "SIMULATION/LTE_PHY/common_sim.h"
 #include "common/utils/assertions.h"
@@ -57,7 +56,6 @@
 #include "common/utils/T/T.h"
 #include "common/utils/nr/nr_common.h"
 #include "common/utils/threadPool/thread-pool.h"
-#include "common/utils/var_array.h"
 #include "common_lib.h"
 #include "e1ap_messages_types.h"
 #include "executables/nr-uesoftmodem.h"
@@ -1176,7 +1174,7 @@ int main(int argc, char *argv[])
   int srs_ret = do_SRS;
   for (SNR = snr0; SNR <= snr1 && !stop; SNR += snr_step) {
 
-    varArray_t *table_rx=initVarArray(1000,sizeof(double));
+    time_stats_t *table_rx = &gNB->rx_pusch_stats;
     int error_flag = 0;
     n_false_positive = 0;
     effRate = 0;
@@ -1846,7 +1844,7 @@ int main(int argc, char *argv[])
       }
 
       printf("\ngNB RX\n");
-      printDistribution(&gNB->phy_proc_rx,table_rx, "Total PHY proc rx");
+      printDistribution(&gNB->phy_proc_rx, "Total PHY proc rx");
       printStatIndent(&gNB->rx_pusch_stats, "RX PUSCH time");
       printStatIndent2(&gNB->ulsch_channel_estimation_stats, "ULSCH channel estimation time");
       printStatIndent3(&gNB->pusch_channel_estimation_antenna_processing_stats, "Antenna Processing time");

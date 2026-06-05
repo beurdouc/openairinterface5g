@@ -47,9 +47,17 @@ typedef struct {
  * \var nb_elm number of elements in the list
  * \var list pointer to the list
  */
+/*
+ * Marker set only by init_time_stats_sorted_list().
+ * It prevents an uninitialized time_stats_t from being mistaken for an
+ * enabled sorted list when its size field contains garbage.
+ */
+#define TIME_STATS_SORTED_LIST_MAGIC 0x51A7BEEF
+
 typedef struct {
   unsigned int size;
   unsigned int nb_elm;
+  uint32_t magic;
   oai_cputime_t *list;
 } time_stats_sorted_list_t;
 

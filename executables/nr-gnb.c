@@ -251,13 +251,6 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
                            output,
                            end - output);
   output += print_meas_log(&gNB->dlsch_encoding_stats, "DLSCH encoding", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->dlsch_segmentation_stats,  "DL segment segmentation", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->tinput, "DL encoding input", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->tprep, "DL encoding preparation", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->tparity, "DL encoding parity", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->toutput, "DL encoding output", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->dlsch_rate_matching_stats, "DL rate matching", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->dlsch_interleaving_stats, "DL interleaving", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_scrambling_stats, "DLSCH scrambling", NULL, NULL, output, end-output);
   output += print_meas_log(&gNB->dlsch_modulation_stats, "DLSCH modulation", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_pdsch_generation_stats, "PDSCH generation", NULL, NULL, output, end - output);

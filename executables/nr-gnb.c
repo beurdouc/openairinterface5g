@@ -255,13 +255,6 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
                            output,
                            end - output);
   output += print_meas_log(&gNB->dlsch_encoding_stats, "DLSCH encoding", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->dlsch_segmentation_stats,  "DL segment segmentation", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->tinput, "DL encoding input", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->tprep, "DL encoding preparation", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->tparity, "DL encoding parity", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->toutput, "DL encoding output", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->dlsch_rate_matching_stats, "DL rate matching", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->dlsch_interleaving_stats, "DL interleaving", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_scrambling_stats, "DLSCH scrambling", NULL, NULL, output, end-output);
   output += print_meas_log(&gNB->dlsch_modulation_stats, "DLSCH modulation", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->dlsch_pdsch_generation_stats, "PDSCH generation", NULL, NULL, output, end - output);
@@ -320,13 +313,6 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
     reset_meas(&gNB->ru_tx_func_stats);
 
     reset_meas(&gNB->dlsch_encoding_stats);
-    reset_meas(&gNB->dlsch_segmentation_stats);
-    reset_meas(&gNB->tinput);
-    reset_meas(&gNB->tprep);
-    reset_meas(&gNB->tparity);
-    reset_meas(&gNB->toutput);
-    reset_meas(&gNB->dlsch_rate_matching_stats);
-    reset_meas(&gNB->dlsch_interleaving_stats);
     reset_meas(&gNB->dlsch_scrambling_stats);
     reset_meas(&gNB->dlsch_modulation_stats);
     reset_meas(&gNB->dlsch_resource_mapping_stats);
@@ -387,13 +373,6 @@ void *nrL1_stats_thread(void *param) {
     init_sorted_list_meas(&gNB->l1_rx_proc, SORTED_LIST_SIZE);
     init_sorted_list_meas(&gNB->phy_proc_tx, SORTED_LIST_SIZE);
     init_sorted_list_meas(&gNB->dlsch_encoding_stats, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->tinput, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->tprep, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->tparity, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->toutput, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->dlsch_segmentation_stats, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->dlsch_rate_matching_stats, SORTED_LIST_SIZE);
-    init_sorted_list_meas(&gNB->dlsch_interleaving_stats, SORTED_LIST_SIZE);
     init_sorted_list_meas(&gNB->dlsch_scrambling_stats, SORTED_LIST_SIZE);
     init_sorted_list_meas(&gNB->dlsch_modulation_stats, SORTED_LIST_SIZE);
     init_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats, SORTED_LIST_SIZE);
@@ -431,13 +410,6 @@ void *nrL1_stats_thread(void *param) {
   reset_meas(&gNB->l1_rx_proc);
   reset_meas(&gNB->phy_proc_tx);
   reset_meas(&gNB->dlsch_encoding_stats);
-  reset_meas(&gNB->dlsch_segmentation_stats);
-  reset_meas(&gNB->tinput);
-  reset_meas(&gNB->tprep);
-  reset_meas(&gNB->tparity);
-  reset_meas(&gNB->toutput);
-  reset_meas(&gNB->dlsch_rate_matching_stats);
-  reset_meas(&gNB->dlsch_interleaving_stats);
   reset_meas(&gNB->dlsch_scrambling_stats);
   reset_meas(&gNB->dlsch_modulation_stats);
   reset_meas(&gNB->dlsch_pdsch_generation_stats);
@@ -490,13 +462,6 @@ void *nrL1_stats_thread(void *param) {
     free_sorted_list_meas(&gNB->l1_rx_proc);
     free_sorted_list_meas(&gNB->phy_proc_tx);
     free_sorted_list_meas(&gNB->dlsch_encoding_stats);
-    free_sorted_list_meas(&gNB->dlsch_segmentation_stats);
-    free_sorted_list_meas(&gNB->tinput);
-    free_sorted_list_meas(&gNB->tprep);
-    free_sorted_list_meas(&gNB->tparity);
-    free_sorted_list_meas(&gNB->toutput);
-    free_sorted_list_meas(&gNB->dlsch_rate_matching_stats);
-    free_sorted_list_meas(&gNB->dlsch_interleaving_stats);
     free_sorted_list_meas(&gNB->dlsch_scrambling_stats);
     free_sorted_list_meas(&gNB->dlsch_modulation_stats);
     free_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats);

@@ -12,7 +12,6 @@
 #include <string.h>
 #include "common/utils/assertions.h"
 #include "common/utils/nr/nr_common.h"
-#include "common/utils/var_array.h"
 #include "executables/nr-uesoftmodem.h"
 #include "executables/softmodem-common.h"
 #include "LAYER2/NR_MAC_UE/mac_defs.h"
@@ -56,7 +55,6 @@
 #include "common/ran_context.h"
 #include "common/utils/T/T.h"
 #include "common/utils/nr/nr_common.h"
-#include "common/utils/var_array.h"
 #include "common_lib.h"
 #include "e1ap_messages_types.h"
 #include "fapi_nr_ue_interface.h"
@@ -1048,7 +1046,7 @@ int main(int argc, char **argv)
 
   for (SNR = snr0; SNR < snr1 && !stop; SNR += .2) {
 
-    varArray_t *table_tx=initVarArray(1000,sizeof(double));
+    time_stats_t *table_tx = &gNB->phy_proc_tx;
     reset_meas(&gNB->phy_proc_tx);
     reset_meas(&gNB->dlsch_scrambling_stats);
     reset_meas(&gNB->dlsch_modulation_stats);
@@ -1438,7 +1436,7 @@ int main(int argc, char **argv)
              g_mcsIndex,
              UE->dl_harq_processes[0][slot].C,
              8 * pdsch_pdu_rel15->TBSize[0]);
-      printDistribution(&gNB->phy_proc_tx,table_tx,"PHY proc tx");
+      printDistribution(&gNB->phy_proc_tx, "PHY proc tx");
       printStatIndent2(&gNB->dci_generation_stats, "DCI encoding time");
       printStatIndent2(&gNB->dlsch_encoding_stats,"DLSCH encoding time");
       printStatIndent2(&gNB->dlsch_modulation_stats,"DLSCH modulation time");

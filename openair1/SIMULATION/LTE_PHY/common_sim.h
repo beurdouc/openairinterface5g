@@ -4,27 +4,14 @@
 
 #include "PHY/defs_common.h"
 
-double median(varArray_t *input) {
-  return *(double *)((uint8_t *)(input+1)+(input->size/2)*input->atomSize);
+static inline double time_stats_value_us(time_stats_t *ptr, oai_cputime_t (*getter)(time_stats_sorted_list_t *))
+{
+  if (ptr == NULL || !is_enabled_time_stats_sorted_list(&ptr->time_stats_sorted_list))
+    return 0;
+  oai_cputime_t value = getter(&ptr->time_stats_sorted_list);
+  return value >= 0 ? value / 1000.0 : 0;
 }
 
-double q1(varArray_t *input) {
-  return *(double *)((uint8_t *)(input+1)+(input->size/4)*input->atomSize);
-}
-
-double q3(varArray_t *input) {
-  return *(double *)((uint8_t *)(input+1)+(3*input->size/4)*input->atomSize);
-}
-
-void dumpVarArray(varArray_t *input) {
-  double *ptr=dataArray(input);
-  printf("dumping size=%ld\n", input->size);
-
-  for (int i=0; i < input->size; i++)
-    printf("%.1f:", *ptr++);
-
-  printf("\n");
-}
 void sumUpStats(time_stats_t * res, time_stats_t * src, int lastActive) {
   reset_meas(res);
 	for (int i=0; i<RX_NB_TH; i++) {
@@ -56,19 +43,20 @@ double squareRoot(time_stats_t *ptr) {
               pow((double)ptr->diff/ptr->trials*timeBase,2));
 }
 
-void printDistribution(time_stats_t *ptr, varArray_t *sortedList, char *txt) {
+void printDistribution(time_stats_t *ptr, char *txt) {
   printf("%-43s %6.2f us (%d trials)\n",
          txt,
-         (double)ptr->diff/ptr->trials/1000.0,
+         ptr->trials ? (double)ptr->diff / ptr->trials / 1000.0 : 0,
          ptr->trials);
+
   printf(" Statistics std=%.2f, min=%.2f, q1=%.2f, median=%.2f, q3=%.2f, max=%.2f µs (on %d trials)\n",
-         squareRoot(ptr),
-	 get_min(&ptr->time_stats_sorted_list) / 1000.0,
-	 get_q1(&ptr->time_stats_sorted_list) / 1000.0,
-	 get_median(&ptr->time_stats_sorted_list) / 1000.0,
-	 get_q3(&ptr->time_stats_sorted_list) / 1000.0,
-	 ptr->max / 1000.0,
-	 ptr->trials);
+         ptr->trials ? squareRoot(ptr) : 0,
+         time_stats_value_us(ptr, get_min),
+         time_stats_value_us(ptr, get_q1),
+         time_stats_value_us(ptr, get_median),
+         time_stats_value_us(ptr, get_q3),
+         ptr->max / 1000.0,
+         ptr->trials);
 }
 
 void printStatIndent(time_stats_t *ptr, char *txt) {
@@ -95,12 +83,15 @@ void printStatIndent3(time_stats_t *ptr, char *txt) {
 }
 
 
-void logDistribution(FILE* fd, time_stats_t *ptr, varArray_t *sortedList, int dropped) {
-  fprintf(fd,"%f;%f;%f;%f;%f;%f;%d;",
-	  squareRoot(ptr),
-	  (double)ptr->max, *(double*)dataArray(sortedList),
-	  median(sortedList),q1(sortedList),q3(sortedList),
-	  dropped);
+void logDistribution(FILE* fd, time_stats_t *ptr, int dropped) {
+  fprintf(fd, "%f;%f;%f;%f;%f;%f;%d;",
+          ptr->trials ? squareRoot(ptr) : 0,
+          ptr->max / 1000.0,
+          time_stats_value_us(ptr, get_min),
+          time_stats_value_us(ptr, get_median),
+          time_stats_value_us(ptr, get_q1),
+          time_stats_value_us(ptr, get_q3),
+          dropped);
 }
 
 struct option * parse_oai_options(paramdef_t *options) {

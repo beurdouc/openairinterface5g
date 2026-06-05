@@ -75,7 +75,6 @@ int nr_ulsch_pre_encoding(PHY_VARS_NR_UE *ue,
 
     harq_process->BG = pusch_pdu->ldpcBaseGraph;
 
-    start_meas_nr_ue_phy(ue, ULSCH_SEGMENTATION_STATS);
     harq_process->Kb = nr_segmentation(harq_process->payload_AB,
                                        harq_process->c,
                                        B,
@@ -88,7 +87,6 @@ int nr_ulsch_pre_encoding(PHY_VARS_NR_UE *ue,
       LOG_E(PHY, "nr_segmentation.c: too many segments %d, B %d\n", harq_process->C, B);
       return (-1);
     }
-    stop_meas_nr_ue_phy(ue, ULSCH_SEGMENTATION_STATS);
   } // pusch_id
   return 0;
 }
@@ -157,13 +155,7 @@ int nr_ulsch_encoding(PHY_VARS_NR_UE *ue,
          return -1;
       segment_parameters->c = harq_process->c[r];
       segment_parameters->E = E;
-      reset_meas(&segment_parameters->ts_interleave);
-      reset_meas(&segment_parameters->ts_rate_match);
       reset_meas(&segment_parameters->ts_ldpc_encode);
-      reset_meas(&segment_parameters->tinput);
-      reset_meas(&segment_parameters->tprep);
-      reset_meas(&segment_parameters->tparity);
-      reset_meas(&segment_parameters->toutput);
 
     } // TB_parameters->C
   } // pusch_id
@@ -175,13 +167,7 @@ int nr_ulsch_encoding(PHY_VARS_NR_UE *ue,
     nrLDPC_TB_encoding_parameters_t *TB_parameters = &TBs[pusch_id];
     for (int r = 0; r < TB_parameters->C; r++) {
       nrLDPC_segment_encoding_parameters_t *segment_parameters = &TB_parameters->segments[r];
-      merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_INTERLEAVING_STATS], &segment_parameters->ts_interleave);
-      merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_RATE_MATCHING_STATS], &segment_parameters->ts_rate_match);
       merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_LDPC_ENCODING_STATS], &segment_parameters->ts_ldpc_encode);
-      merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_LDPC_INPUT_STATS], &segment_parameters->tinput);
-      merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_LDPC_PREP_STATS], &segment_parameters->tprep);
-      merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_LDPC_PARITY_STATS], &segment_parameters->tparity);
-      merge_meas(&ue->phy_cpu_stats.cpu_time_stats[ULSCH_LDPC_OUTPUT_STATS], &segment_parameters->toutput);
     }
   }
 

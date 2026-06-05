@@ -775,9 +775,7 @@ static int do_one_dlsch(unsigned char *input_ptr, PHY_VARS_gNB *gNB, NR_gNB_DLSC
         re_beginning_of_symbol -= n_dmrs;
       }
     }
-    memset(&rdata->dlsch_resource_mapping_stats, 0, sizeof(rdata->dlsch_resource_mapping_stats));
     reset_meas(&rdata->dlsch_resource_mapping_stats);
-    memset(&rdata->dlsch_precoding_stats, 0, sizeof(rdata->dlsch_precoding_stats));
     reset_meas(&rdata->dlsch_precoding_stats);
     for (int l = 0; l < rel15->nrOfLayers; l++)
       rdata->tx_layers[l] = tx_layers[l];
@@ -804,13 +802,6 @@ static int do_one_dlsch(unsigned char *input_ptr, PHY_VARS_gNB *gNB, NR_gNB_DLSC
 void nr_generate_pdsch(PHY_VARS_gNB *gNB, int n_dlsch, NR_gNB_DLSCH_t *dlsch_array, int frame, int slot)
 {
   time_stats_t *dlsch_encoding_stats = &gNB->dlsch_encoding_stats;
-  time_stats_t *tinput = &gNB->tinput;
-  time_stats_t *tprep = &gNB->tprep;
-  time_stats_t *tparity = &gNB->tparity;
-  time_stats_t *toutput = &gNB->toutput;
-  time_stats_t *dlsch_rate_matching_stats = &gNB->dlsch_rate_matching_stats;
-  time_stats_t *dlsch_interleaving_stats = &gNB->dlsch_interleaving_stats;
-  time_stats_t *dlsch_segmentation_stats = &gNB->dlsch_segmentation_stats;
 
   size_t size_output = 0;
 
@@ -869,14 +860,7 @@ void nr_generate_pdsch(PHY_VARS_gNB *gNB, int n_dlsch, NR_gNB_DLSCH_t *dlsch_arr
                         dlsch_array,
                         frame,
                         slot,
-                        output,
-                        tinput,
-                        tprep,
-                        tparity,
-                        toutput,
-                        dlsch_rate_matching_stats,
-                        dlsch_interleaving_stats,
-                        dlsch_segmentation_stats)
+                        output)
       == -1) {
     return;
   }

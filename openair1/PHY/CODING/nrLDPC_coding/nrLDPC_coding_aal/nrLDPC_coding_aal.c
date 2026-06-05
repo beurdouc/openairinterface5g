@@ -904,10 +904,8 @@ static int pmd_lcore_ldpc_enc(void *arg)
   set_ldpc_enc_op(ops_enq, bufs->inputs, bufs->hard_outputs, nrLDPC_slot_encoding_parameters);
 
   // We report timing only once in (0,0) since the timers are merged at the end
-  time_stats_t *tprep = &nrLDPC_slot_encoding_parameters->TBs[0].segments[0].tprep;
-  time_stats_t *tparity = &nrLDPC_slot_encoding_parameters->TBs[0].segments[0].tparity;
-  if(tprep != NULL) stop_meas(tprep);
-  if(tparity != NULL) start_meas(tparity);
+  time_stats_t *ts_ldpc_encode = &nrLDPC_slot_encoding_parameters->TBs[0].segments[0].ts_ldpc_encode;
+  if(ts_ldpc_encode != NULL) start_meas(ts_ldpc_encode);
 
   uint16_t enq = 0, deq = 0;
   while (enq < num_segments) {
@@ -921,13 +919,10 @@ static int pmd_lcore_ldpc_enc(void *arg)
     time_out++;
     DevAssert(time_out <= TIME_OUT_POLL);
   }
-  if(tparity != NULL) stop_meas(tparity);
+  if(ts_ldpc_encode != NULL) stop_meas(ts_ldpc_encode);
   // We report timing only once in (0,0) since the timers are merged at the end
-  time_stats_t *toutput = &nrLDPC_slot_encoding_parameters->TBs[0].segments[0].toutput;
-  if(toutput != NULL) start_meas(toutput);
   ret = retrieve_ldpc_enc_op(ops_deq, nrLDPC_slot_encoding_parameters);
   AssertFatal(ret == 0, "Failed to retrieve LDPC encoding op!");
-  if(toutput != NULL) stop_meas(toutput);
   rte_bbdev_enc_op_free_bulk(ops_enq, num_segments);
   return ret;
 }
@@ -1338,9 +1333,6 @@ int32_t nrLDPC_coding_decoder(nrLDPC_slot_decoding_parameters_t *nrLDPC_slot_dec
 int32_t nrLDPC_coding_encoder(nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encoding_parameters)
 {
   pthread_mutex_lock(&encode_mutex);
-  // We report timing only once in (0,0) since the timers are merged at the end
-  time_stats_t *tprep = &nrLDPC_slot_encoding_parameters->TBs[0].segments[0].tprep;
-  if(tprep != NULL) start_meas(tprep);
 
   const uint16_t num_segments = nb_segments_encoding(nrLDPC_slot_encoding_parameters);
 

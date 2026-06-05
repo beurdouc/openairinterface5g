@@ -657,9 +657,8 @@ int main(int argc, char **argv)
     print_meas_row("  Total", &gNB->phy_proc_tx, count);
     print_meas_row("    DCI generation", &gNB->dci_generation_stats, count);
     print_meas_row("    DLSCH encoding", &gNB->dlsch_encoding_stats, count);
-    print_meas_row("      segmentation", &gNB->dlsch_segmentation_stats, count);
-    print_meas_row("      rate matching", &gNB->dlsch_rate_matching_stats, count);
-    print_meas_row("      scrambling", &gNB->dlsch_scrambling_stats, count);
+    print_meas_row("      LDPC encoding", &gNB->dlsch_ldpc_encode_stats, count);
+    print_meas_row("    scrambling", &gNB->dlsch_scrambling_stats, count);
     print_meas_row("    DLSCH modulation", &gNB->dlsch_modulation_stats, count);
     print_meas_row("    layer mapping", &gNB->dlsch_layer_mapping_stats, count);
     print_meas_row("    precoding", &gNB->dlsch_precoding_stats, count);

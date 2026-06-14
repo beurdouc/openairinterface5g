@@ -34,6 +34,7 @@ static bool is_xlsch_in_slot(uint64_t bitmap, uint32_t modval, slot_t slot)
 }
 
 uint32_t target_dl_mcs = 9;
+uint32_t target_dl_mcs_table_index = 0;
 uint32_t target_dl_Nl = 1;
 uint32_t target_dl_pmi = 0;
 uint32_t target_dl_bw = 50;
@@ -56,6 +57,7 @@ void nr_preprocessor_phytest(gNB_MAC_INST *mac, post_process_pdsch_t *pp_pdsch)
   NR_ServingCellConfigCommon_t *scc = mac->common_channels[0].ServingCellConfigCommon;
   NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   NR_UE_DL_BWP_t *dl_bwp = &UE->current_DL_BWP;
+  dl_bwp->mcsTableIdx = target_dl_mcs_table_index;
   const int CC_id = 0;
 
   /* return if all DL HARQ processes wait for feedback */
@@ -207,6 +209,7 @@ void nr_preprocessor_phytest(gNB_MAC_INST *mac, post_process_pdsch_t *pp_pdsch)
 }
 
 uint32_t target_ul_mcs = 9;
+uint32_t target_ul_mcs_table_index = 0;
 uint32_t target_ul_bw = 50;
 uint32_t target_ul_Nl = 1;
 uint64_t ulsch_slot_bitmap = (1 << 8);
@@ -230,6 +233,7 @@ void nr_ul_preprocessor_phytest(gNB_MAC_INST *nr_mac, post_process_pusch_t *pp_p
 
   NR_UE_sched_ctrl_t *sched_ctrl = &UE->UE_sched_ctrl;
   NR_UE_UL_BWP_t *ul_bwp = &UE->current_UL_BWP;
+  ul_bwp->mcs_table = target_ul_mcs_table_index;
 
   /* return if all UL HARQ processes wait for feedback */
   if (sched_ctrl->retrans_ul_harq.head == -1 && sched_ctrl->available_ul_harq.head == -1) {

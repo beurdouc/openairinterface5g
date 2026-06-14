@@ -25,7 +25,9 @@
   {"L" ,                    CONFIG_HLP_ULNL_PHYTEST,   0,                .uptr=&target_ul_Nl,                 .defintval=0,                     TYPE_UINT,   0},        \
   {"p" ,                    CONFIG_HLP_DLPMI_PHYTEST,  0,                .uptr=&target_dl_pmi,                .defintval=0,                     TYPE_UINT,   0},        \
   {"m" ,                    CONFIG_HLP_DLMCS_PHYTEST,  0,                .uptr=&target_dl_mcs,                .defintval=0,                     TYPE_UINT,   0},        \
+  {"n" ,                    CONFIG_HLP_DLMCST_PHYTEST, 0,                .uptr=&target_dl_mcs_table_index,    .defintval=0,                     TYPE_UINT,   0},        \
   {"t" ,                    CONFIG_HLP_ULMCS_PHYTEST,  0,                .uptr=&target_ul_mcs,                .defintval=0,                     TYPE_UINT,   0},        \
+  {"u" ,                    CONFIG_HLP_ULMCST_PHYTEST, 0,                .uptr=&target_ul_mcs_table_index,    .defintval=0,                     TYPE_UINT,   0},        \
   {"M" ,                    CONFIG_HLP_DLBW_PHYTEST,   0,                .uptr=&target_dl_bw,                 .defintval=0,                     TYPE_UINT,   0},        \
   {"T" ,                    CONFIG_HLP_ULBW_PHYTEST,   0,                .uptr=&target_ul_bw,                 .defintval=0,                     TYPE_UINT,   0},        \
   {"D" ,                    CONFIG_HLP_DLBM_PHYTEST,   0,                .u64ptr=&dlsch_slot_bitmap,          .defint64val=0,                   TYPE_UINT64, 0},        \
@@ -41,7 +43,9 @@ extern uint32_t target_dl_Nl;
 extern uint32_t target_ul_Nl;
 extern uint32_t target_dl_pmi;
 extern uint32_t target_dl_mcs;
+extern uint32_t target_dl_mcs_table_index;
 extern uint32_t target_ul_mcs;
+extern uint32_t target_ul_mcs_table_index;
 extern uint32_t target_dl_bw;
 extern uint32_t target_ul_bw;
 extern uint64_t dlsch_slot_bitmap;

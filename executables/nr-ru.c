@@ -316,11 +316,37 @@ void fh_if4p5_north_asynch_in(RU_t *ru,int *frame,int *slot) {
       ((uint64_t)frame_tx + proc->frame_tx_unwrap) * fp->samples_per_subframe * 10 + get_samples_slot_timestamp(fp, slot_tx);
   LOG_D(PHY, "RU %d/%d TST %lu, frame %d, subframe %d\n", ru->idx, 0, proc->timestamp_tx, frame_tx, slot_tx);
 
-  if (ru->feptx_ofdm)
+  if (ru->feptx_ofdm) {
+    if (!ru->rt_ru_feptx_ofdm_call_probe.initialized)
+      rt_probe_init(&ru->rt_ru_feptx_ofdm_call_probe, "RU_FEPTX_OFDM_CALL");
+
+    const uint64_t rt_start_ns = rt_probe_now_ns();
+
     ru->feptx_ofdm(ru, frame_tx, slot_tx);
 
-  if (ru->fh_south_out)
+    const uint64_t rt_end_ns = rt_probe_now_ns();
+    const uint64_t rt_duration_us = rt_probe_ns_to_us(rt_end_ns - rt_start_ns);
+
+    rt_probe_record(&ru->rt_ru_feptx_ofdm_call_probe, rt_duration_us);
+    rt_probe_maybe_log_late(&ru->rt_ru_feptx_ofdm_call_probe, frame_tx, slot_tx, rt_duration_us, 500);
+    rt_probe_maybe_report(&ru->rt_ru_feptx_ofdm_call_probe, 20000);
+  }
+
+  if (ru->fh_south_out) {
+    if (!ru->rt_ru_tx_fhaul_call_probe.initialized)
+      rt_probe_init(&ru->rt_ru_tx_fhaul_call_probe, "RU_TX_FHAUL_CALL");
+
+    const uint64_t rt_start_ns = rt_probe_now_ns();
+
     ru->fh_south_out(ru, frame_tx, slot_tx, proc->timestamp_tx);
+
+    const uint64_t rt_end_ns = rt_probe_now_ns();
+    const uint64_t rt_duration_us = rt_probe_ns_to_us(rt_end_ns - rt_start_ns);
+
+    rt_probe_record(&ru->rt_ru_tx_fhaul_call_probe, rt_duration_us);
+    rt_probe_maybe_log_late(&ru->rt_ru_tx_fhaul_call_probe, frame_tx, slot_tx, rt_duration_us, 500);
+    rt_probe_maybe_report(&ru->rt_ru_tx_fhaul_call_probe, 20000);
+  }
 }
 
 void fh_if5_north_out(RU_t *ru)
@@ -745,15 +771,54 @@ void ru_tx_func(void *param)
   int slot_tx = info->slot_tx;
 
   // do TX front-end processing if needed (precoding and/or IDFTs)
-  if (ru->feptx_prec)
-    ru->feptx_prec(ru,frame_tx,slot_tx);
+  if (ru->feptx_prec) {
+    if (!ru->rt_ru_feptx_prec_call_probe.initialized)
+      rt_probe_init(&ru->rt_ru_feptx_prec_call_probe, "RU_FEPTX_PREC_CALL");
+
+    const uint64_t rt_start_ns = rt_probe_now_ns();
+
+    ru->feptx_prec(ru, frame_tx, slot_tx);
+
+    const uint64_t rt_end_ns = rt_probe_now_ns();
+    const uint64_t rt_duration_us = rt_probe_ns_to_us(rt_end_ns - rt_start_ns);
+
+    rt_probe_record(&ru->rt_ru_feptx_prec_call_probe, rt_duration_us);
+    rt_probe_maybe_log_late(&ru->rt_ru_feptx_prec_call_probe, frame_tx, slot_tx, rt_duration_us, 500);
+    rt_probe_maybe_report(&ru->rt_ru_feptx_prec_call_probe, 20000);
+  }
 
   // do OFDM with/without TX front-end processing  if needed
-  if (ru->fh_north_asynch_in == NULL && ru->feptx_ofdm)
+  if (ru->fh_north_asynch_in == NULL && ru->feptx_ofdm) {
+    if (!ru->rt_ru_feptx_ofdm_call_probe.initialized)
+      rt_probe_init(&ru->rt_ru_feptx_ofdm_call_probe, "RU_FEPTX_OFDM_CALL");
+
+    const uint64_t rt_start_ns = rt_probe_now_ns();
+
     ru->feptx_ofdm(ru, frame_tx, slot_tx);
 
-  if (ru->fh_north_asynch_in == NULL && ru->fh_south_out)
+    const uint64_t rt_end_ns = rt_probe_now_ns();
+    const uint64_t rt_duration_us = rt_probe_ns_to_us(rt_end_ns - rt_start_ns);
+
+    rt_probe_record(&ru->rt_ru_feptx_ofdm_call_probe, rt_duration_us);
+    rt_probe_maybe_log_late(&ru->rt_ru_feptx_ofdm_call_probe, frame_tx, slot_tx, rt_duration_us, 500);
+    rt_probe_maybe_report(&ru->rt_ru_feptx_ofdm_call_probe, 20000);
+  }
+
+  if (ru->fh_north_asynch_in == NULL && ru->fh_south_out) {
+    if (!ru->rt_ru_tx_fhaul_call_probe.initialized)
+      rt_probe_init(&ru->rt_ru_tx_fhaul_call_probe, "RU_TX_FHAUL_CALL");
+
+    const uint64_t rt_start_ns = rt_probe_now_ns();
+
     ru->fh_south_out(ru, frame_tx, slot_tx, info->timestamp_tx);
+
+    const uint64_t rt_end_ns = rt_probe_now_ns();
+    const uint64_t rt_duration_us = rt_probe_ns_to_us(rt_end_ns - rt_start_ns);
+
+    rt_probe_record(&ru->rt_ru_tx_fhaul_call_probe, rt_duration_us);
+    rt_probe_maybe_log_late(&ru->rt_ru_tx_fhaul_call_probe, frame_tx, slot_tx, rt_duration_us, 500);
+    rt_probe_maybe_report(&ru->rt_ru_tx_fhaul_call_probe, 20000);
+  }
   if (ru->fh_north_out)
     ru->fh_north_out(ru);
 }

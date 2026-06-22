@@ -47,6 +47,10 @@ static int DEFRUTPCORES[] = {-1,-1,-1,-1};
 #include <nfapi/oai_integration/vendor_ext.h>
 #include "executables/nr-softmodem-common.h"
 
+static void load_rt_deadline_config_once(void);
+static void configure_ru_rt_probes(RU_t *ru);
+
+
 static void NRRCconfig_RU(configmodule_interface_t *cfg);
 
 /*************************************************************/
@@ -592,6 +596,80 @@ int setup_RU_buffers(RU_t *ru)
   return(0);
 }
 
+
+static rt_deadline_probe_config_t g_rt_deadline_cfg;
+static int g_rt_deadline_cfg_loaded = 0;
+
+static void load_rt_deadline_config_once(void)
+{
+  if (g_rt_deadline_cfg_loaded)
+    return;
+
+  g_rt_deadline_cfg = rt_deadline_default_config();
+
+  int enabled = g_rt_deadline_cfg.enabled;
+  int report_period = (int)g_rt_deadline_cfg.report_period;
+  int late_threshold_us = (int)g_rt_deadline_cfg.late_threshold_us;
+  int threshold0_us = (int)g_rt_deadline_cfg.threshold_us[0];
+  int threshold1_us = (int)g_rt_deadline_cfg.threshold_us[1];
+  int threshold2_us = (int)g_rt_deadline_cfg.threshold_us[2];
+  int threshold3_us = (int)g_rt_deadline_cfg.threshold_us[3];
+
+  paramdef_t RTDeadlineParams[] = {
+      {"enable", NULL, 0, .iptr = &enabled, .defintval = enabled, TYPE_INT, 0, NULL},
+      {"report_period", NULL, 0, .iptr = &report_period, .defintval = report_period, TYPE_INT, 0, NULL},
+      {"late_threshold_us", NULL, 0, .iptr = &late_threshold_us, .defintval = late_threshold_us, TYPE_INT, 0, NULL},
+      {"threshold0_us", NULL, 0, .iptr = &threshold0_us, .defintval = threshold0_us, TYPE_INT, 0, NULL},
+      {"threshold1_us", NULL, 0, .iptr = &threshold1_us, .defintval = threshold1_us, TYPE_INT, 0, NULL},
+      {"threshold2_us", NULL, 0, .iptr = &threshold2_us, .defintval = threshold2_us, TYPE_INT, 0, NULL},
+      {"threshold3_us", NULL, 0, .iptr = &threshold3_us, .defintval = threshold3_us, TYPE_INT, 0, NULL},
+  };
+
+  config_get(config_get_if(), RTDeadlineParams, sizeofArray(RTDeadlineParams), "rt_deadline");
+
+  g_rt_deadline_cfg.enabled = enabled;
+  g_rt_deadline_cfg.report_period = report_period > 0 ? (uint64_t)report_period : 20000;
+  g_rt_deadline_cfg.late_threshold_us = late_threshold_us > 0 ? (uint64_t)late_threshold_us : 500;
+  g_rt_deadline_cfg.threshold_us[0] = threshold0_us > 0 ? (uint64_t)threshold0_us : 100;
+  g_rt_deadline_cfg.threshold_us[1] = threshold1_us > 0 ? (uint64_t)threshold1_us : 200;
+  g_rt_deadline_cfg.threshold_us[2] = threshold2_us > 0 ? (uint64_t)threshold2_us : 500;
+  g_rt_deadline_cfg.threshold_us[3] = threshold3_us > 0 ? (uint64_t)threshold3_us : 1000;
+
+  printf("RT_DEADLINE_CONFIG enabled=%d report_period=%lu late_threshold_us=%lu "
+         "threshold0_us=%lu threshold1_us=%lu threshold2_us=%lu threshold3_us=%lu\n",
+         g_rt_deadline_cfg.enabled,
+         g_rt_deadline_cfg.report_period,
+         g_rt_deadline_cfg.late_threshold_us,
+         g_rt_deadline_cfg.threshold_us[0],
+         g_rt_deadline_cfg.threshold_us[1],
+         g_rt_deadline_cfg.threshold_us[2],
+         g_rt_deadline_cfg.threshold_us[3]);
+  fflush(stdout);
+
+  g_rt_deadline_cfg_loaded = 1;
+}
+
+static void configure_ru_rt_probes(RU_t *ru)
+{
+  if (ru == NULL)
+    return;
+
+  load_rt_deadline_config_once();
+
+  if (ru->rt_ru_feptx_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_feptx_probe, &g_rt_deadline_cfg);
+
+  if (ru->rt_ru_feptx_ofdm_call_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_feptx_ofdm_call_probe, &g_rt_deadline_cfg);
+
+  if (ru->rt_ru_feptx_prec_call_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_feptx_prec_call_probe, &g_rt_deadline_cfg);
+
+  if (ru->rt_ru_tx_fhaul_call_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_tx_fhaul_call_probe, &g_rt_deadline_cfg);
+}
+
+
 void ru_tx_func(void *param)
 {
   processingData_RU_t *info = (processingData_RU_t *) param;
@@ -603,6 +681,7 @@ void ru_tx_func(void *param)
   if (ru->feptx_prec) {
     if (!ru->rt_ru_feptx_prec_call_probe.initialized)
       rt_probe_init(&ru->rt_ru_feptx_prec_call_probe, "RU_FEPTX_PREC_CALL");
+    configure_ru_rt_probes(ru);
 
     const uint64_t rt_start_ns = rt_probe_now_ns();
 
@@ -620,6 +699,7 @@ void ru_tx_func(void *param)
   if (ru->feptx_ofdm) {
     if (!ru->rt_ru_feptx_ofdm_call_probe.initialized)
       rt_probe_init(&ru->rt_ru_feptx_ofdm_call_probe, "RU_FEPTX_OFDM_CALL");
+    configure_ru_rt_probes(ru);
 
     const uint64_t rt_start_ns = rt_probe_now_ns();
 
@@ -636,6 +716,7 @@ void ru_tx_func(void *param)
   if (ru->fh_south_out) {
     if (!ru->rt_ru_tx_fhaul_call_probe.initialized)
       rt_probe_init(&ru->rt_ru_tx_fhaul_call_probe, "RU_TX_FHAUL_CALL");
+    configure_ru_rt_probes(ru);
 
     const uint64_t rt_start_ns = rt_probe_now_ns();
 

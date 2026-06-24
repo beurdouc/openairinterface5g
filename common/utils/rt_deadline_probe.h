@@ -76,6 +76,7 @@ typedef struct {
   rt_deadline_capture_sample_t *capture_buffer;
   uint64_t capture_count;
   uint64_t capture_capacity;
+  uint64_t capture_last_dump_count;
   int capture_dumped;
   int capture_alloc_failed;
 } rt_deadline_probe_t;
@@ -120,6 +121,7 @@ static inline void rt_probe_reset_capture(rt_deadline_probe_t *p)
 
   p->capture_count = 0;
   p->capture_capacity = 0;
+  p->capture_last_dump_count = 0;
   p->capture_dumped = 0;
   p->capture_alloc_failed = 0;
 }
@@ -178,19 +180,32 @@ static inline void rt_probe_set_config(rt_deadline_probe_t *p,
   rt_probe_setup_capture(p);
 }
 
-static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
+static inline void rt_probe_write_capture_csv(rt_deadline_probe_t *p, int final_dump)
 {
-  if (p == NULL || p->capture_dumped || p->capture_count == 0)
+  if (p == NULL || !p->initialized)
     return;
 
-  const char *path = p->cfg.capture_path[0] != '\0' ? p->cfg.capture_path : "/tmp/rt_deadline_samples.csv";
-  FILE *f = fopen(path, "w");
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  if (p->capture_buffer == NULL || p->capture_count == 0)
+    return;
+
+  if (p->cfg.capture_path[0] == '\0')
+    return;
+
+  if (p->capture_dumped)
+    return;
+
+  char tmp_path[RT_DEADLINE_CAPTURE_PATH_MAX + 16];
+  snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", p->cfg.capture_path);
+
+  FILE *f = fopen(tmp_path, "w");
   if (f == NULL) {
-    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=fopen_failed path=%s\n",
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fopen\n",
            p->name,
-           path);
-    fflush(stdout);
-    p->capture_dumped = 1;
+           p->capture_count,
+           tmp_path);
     return;
   }
 
@@ -198,7 +213,8 @@ static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
 
   for (uint64_t i = 0; i < p->capture_count; i++) {
     const rt_deadline_capture_sample_t *sample = &p->capture_buffer[i];
-    fprintf(f, "%lu,%lu,%d,%d,%lu,%lu,%d\n",
+    fprintf(f,
+            "%lu,%lu,%d,%d,%lu,%lu,%d\n",
             sample->capture_index,
             sample->probe_total,
             sample->frame,
@@ -208,14 +224,69 @@ static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
             sample->late);
   }
 
-  fclose(f);
-  p->capture_dumped = 1;
+  if (fclose(f) != 0) {
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fclose\n",
+           p->name,
+           p->capture_count,
+           tmp_path);
+    remove(tmp_path);
+    return;
+  }
 
-  printf("RT_DEADLINE_CAPTURE_DUMP probe=%s samples=%lu path=%s\n",
+  if (rename(tmp_path, p->cfg.capture_path) != 0) {
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=rename\n",
+           p->name,
+           p->capture_count,
+           p->cfg.capture_path);
+    remove(tmp_path);
+    return;
+  }
+
+  p->capture_last_dump_count = p->capture_count;
+
+  if (final_dump)
+    p->capture_dumped = 1;
+
+  printf("%s probe=%s samples=%lu capacity=%lu final=%d path=%s\n",
+         final_dump ? "RT_DEADLINE_CAPTURE_DUMP" : "RT_DEADLINE_CAPTURE_SNAPSHOT",
          p->name,
          p->capture_count,
-         path);
-  fflush(stdout);
+         p->capture_capacity,
+         final_dump,
+         p->cfg.capture_path);
+}
+
+static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
+{
+  rt_probe_write_capture_csv(p, 1);
+}
+
+static inline void rt_probe_maybe_snapshot_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
+    return;
+
+  if (p->capture_count == 0)
+    return;
+
+  if (p->capture_count >= p->capture_capacity) {
+    rt_probe_write_capture_csv(p, 1);
+    return;
+  }
+
+  if (p->cfg.report_period == 0)
+    return;
+
+  if (p->capture_count - p->capture_last_dump_count < p->cfg.report_period)
+    return;
+
+  rt_probe_write_capture_csv(p, 0);
 }
 
 static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
@@ -232,8 +303,10 @@ static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
   if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
     return;
 
-  if (p->capture_count >= p->capture_capacity)
+  if (p->capture_count >= p->capture_capacity) {
+    rt_probe_maybe_snapshot_capture(p);
     return;
+  }
 
   const uint64_t idx = p->capture_count;
   rt_deadline_capture_sample_t *sample = &p->capture_buffer[idx];
@@ -247,6 +320,8 @@ static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
   sample->late = p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us;
 
   p->capture_count++;
+
+  rt_probe_maybe_snapshot_capture(p);
 }
 
 static inline void rt_probe_record(rt_deadline_probe_t *p, uint64_t duration_us)

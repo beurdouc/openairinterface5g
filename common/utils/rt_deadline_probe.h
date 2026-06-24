@@ -35,6 +35,7 @@ typedef struct {
   uint64_t total;
   uint64_t sum_us;
   uint64_t max_us;
+  uint64_t late_count;
 
   uint64_t over_100us;
   uint64_t over_200us;
@@ -64,6 +65,14 @@ static inline uint64_t rt_probe_now_ns(void)
 static inline uint64_t rt_probe_ns_to_us(uint64_t ns)
 {
   return ns / 1000ULL;
+}
+
+static inline uint64_t rt_probe_ratio_ppm(uint64_t count, uint64_t total)
+{
+  if (total == 0)
+    return 0;
+
+  return (count * 1000000ULL + total / 2) / total;
 }
 
 static inline void rt_probe_init(rt_deadline_probe_t *p, const char *name)
@@ -105,6 +114,9 @@ static inline void rt_probe_record(rt_deadline_probe_t *p, uint64_t duration_us)
     p->over_500us++;
   if (duration_us > 1000)
     p->over_1000us++;
+
+  if (p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us)
+    p->late_count++;
 
   for (int i = 0; i < RT_DEADLINE_NUM_THRESHOLDS; i++) {
     if (p->cfg.threshold_us[i] > 0 && duration_us > p->cfg.threshold_us[i])
@@ -177,14 +189,20 @@ static inline void rt_probe_maybe_report(rt_deadline_probe_t *p, uint64_t report
   p->last_report_total = p->total;
 
   const uint64_t avg_us = p->sum_us / p->total;
+  const uint64_t late_ratio_ppm = rt_probe_ratio_ppm(p->late_count, p->total);
+  const uint64_t over_threshold0_ratio_ppm = rt_probe_ratio_ppm(p->over_threshold[0], p->total);
+  const uint64_t over_threshold1_ratio_ppm = rt_probe_ratio_ppm(p->over_threshold[1], p->total);
+  const uint64_t over_threshold2_ratio_ppm = rt_probe_ratio_ppm(p->over_threshold[2], p->total);
+  const uint64_t over_threshold3_ratio_ppm = rt_probe_ratio_ppm(p->over_threshold[3], p->total);
 
   printf("RT_DEADLINE_STATS probe=%s total=%lu avg_us=%lu max_us=%lu "
          "enabled=%d report_period=%lu late_threshold_us=%lu "
+         "late_count=%lu late_ratio_ppm=%lu "
          "over_100us=%lu over_200us=%lu over_500us=%lu over_1000us=%lu "
-         "threshold0_us=%lu over_threshold0=%lu "
-         "threshold1_us=%lu over_threshold1=%lu "
-         "threshold2_us=%lu over_threshold2=%lu "
-         "threshold3_us=%lu over_threshold3=%lu "
+         "threshold0_us=%lu over_threshold0=%lu over_threshold0_ratio_ppm=%lu "
+         "threshold1_us=%lu over_threshold1=%lu over_threshold1_ratio_ppm=%lu "
+         "threshold2_us=%lu over_threshold2=%lu over_threshold2_ratio_ppm=%lu "
+         "threshold3_us=%lu over_threshold3=%lu over_threshold3_ratio_ppm=%lu "
          "hist_0_50=%lu hist_50_100=%lu hist_100_200=%lu "
          "hist_200_500=%lu hist_500_1000=%lu hist_1000_2000=%lu hist_over_2000=%lu\n",
          p->name,
@@ -194,18 +212,24 @@ static inline void rt_probe_maybe_report(rt_deadline_probe_t *p, uint64_t report
          p->cfg.enabled,
          p->cfg.report_period,
          p->cfg.late_threshold_us,
+         p->late_count,
+         late_ratio_ppm,
          p->over_100us,
          p->over_200us,
          p->over_500us,
          p->over_1000us,
          p->cfg.threshold_us[0],
          p->over_threshold[0],
+         over_threshold0_ratio_ppm,
          p->cfg.threshold_us[1],
          p->over_threshold[1],
+         over_threshold1_ratio_ppm,
          p->cfg.threshold_us[2],
          p->over_threshold[2],
+         over_threshold2_ratio_ppm,
          p->cfg.threshold_us[3],
          p->over_threshold[3],
+         over_threshold3_ratio_ppm,
          p->hist_0_50,
          p->hist_50_100,
          p->hist_100_200,

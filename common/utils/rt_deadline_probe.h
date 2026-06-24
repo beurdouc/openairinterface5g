@@ -3,17 +3,33 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #define RT_DEADLINE_NUM_THRESHOLDS 4
+#define RT_DEADLINE_CAPTURE_PATH_MAX 256
 
 typedef struct {
   int enabled;
   uint64_t report_period;
   uint64_t late_threshold_us;
   uint64_t threshold_us[RT_DEADLINE_NUM_THRESHOLDS];
+
+  int capture_enable;
+  uint64_t capture_samples;
+  char capture_path[RT_DEADLINE_CAPTURE_PATH_MAX];
 } rt_deadline_probe_config_t;
+
+typedef struct {
+  uint64_t capture_index;
+  uint64_t probe_total;
+  int frame;
+  int slot;
+  uint64_t duration_us;
+  uint64_t late_threshold_us;
+  int late;
+} rt_deadline_capture_sample_t;
 
 static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
 {
@@ -22,6 +38,9 @@ static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
       .report_period = 20000,
       .late_threshold_us = 500,
       .threshold_us = {100, 200, 500, 1000},
+      .capture_enable = 0,
+      .capture_samples = 20000,
+      .capture_path = "/tmp/rt_deadline_samples.csv",
   };
   return cfg;
 }
@@ -53,6 +72,12 @@ typedef struct {
   uint64_t hist_over_2000;
 
   uint64_t last_report_total;
+
+  rt_deadline_capture_sample_t *capture_buffer;
+  uint64_t capture_count;
+  uint64_t capture_capacity;
+  int capture_dumped;
+  int capture_alloc_failed;
 } rt_deadline_probe_t;
 
 static inline uint64_t rt_probe_now_ns(void)
@@ -83,13 +108,145 @@ static inline void rt_probe_init(rt_deadline_probe_t *p, const char *name)
   p->cfg = rt_deadline_default_config();
 }
 
+static inline void rt_probe_reset_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL)
+    return;
+
+  if (p->capture_buffer != NULL) {
+    free(p->capture_buffer);
+    p->capture_buffer = NULL;
+  }
+
+  p->capture_count = 0;
+  p->capture_capacity = 0;
+  p->capture_dumped = 0;
+  p->capture_alloc_failed = 0;
+}
+
+static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL)
+    return;
+
+  if (!p->cfg.capture_enable || p->cfg.capture_samples == 0)
+    return;
+
+  if (p->capture_buffer != NULL)
+    return;
+
+  if (p->cfg.capture_samples > (uint64_t)(SIZE_MAX / sizeof(*p->capture_buffer))) {
+    p->capture_alloc_failed = 1;
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=too_many_samples samples=%lu\n",
+           p->name,
+           p->cfg.capture_samples);
+    fflush(stdout);
+    return;
+  }
+
+  p->capture_buffer = calloc((size_t)p->cfg.capture_samples, sizeof(*p->capture_buffer));
+  if (p->capture_buffer == NULL) {
+    p->capture_alloc_failed = 1;
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=alloc_failed samples=%lu\n",
+           p->name,
+           p->cfg.capture_samples);
+    fflush(stdout);
+    return;
+  }
+
+  p->capture_capacity = p->cfg.capture_samples;
+  p->capture_count = 0;
+  p->capture_dumped = 0;
+  p->capture_alloc_failed = 0;
+
+  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d samples=%lu path=%s\n",
+         p->name,
+         p->cfg.capture_enable,
+         p->cfg.capture_samples,
+         p->cfg.capture_path);
+  fflush(stdout);
+}
+
 static inline void rt_probe_set_config(rt_deadline_probe_t *p,
                                        const rt_deadline_probe_config_t *cfg)
 {
   if (p == NULL || cfg == NULL)
     return;
 
+  rt_probe_reset_capture(p);
   p->cfg = *cfg;
+  rt_probe_setup_capture(p);
+}
+
+static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL || p->capture_dumped || p->capture_count == 0)
+    return;
+
+  const char *path = p->cfg.capture_path[0] != '\0' ? p->cfg.capture_path : "/tmp/rt_deadline_samples.csv";
+  FILE *f = fopen(path, "w");
+  if (f == NULL) {
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=fopen_failed path=%s\n",
+           p->name,
+           path);
+    fflush(stdout);
+    p->capture_dumped = 1;
+    return;
+  }
+
+  fprintf(f, "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late\n");
+
+  for (uint64_t i = 0; i < p->capture_count; i++) {
+    const rt_deadline_capture_sample_t *sample = &p->capture_buffer[i];
+    fprintf(f, "%lu,%lu,%d,%d,%lu,%lu,%d\n",
+            sample->capture_index,
+            sample->probe_total,
+            sample->frame,
+            sample->slot,
+            sample->duration_us,
+            sample->late_threshold_us,
+            sample->late);
+  }
+
+  fclose(f);
+  p->capture_dumped = 1;
+
+  printf("RT_DEADLINE_CAPTURE_DUMP probe=%s samples=%lu path=%s\n",
+         p->name,
+         p->capture_count,
+         path);
+  fflush(stdout);
+}
+
+static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
+                                           int frame,
+                                           int slot,
+                                           uint64_t duration_us)
+{
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
+    return;
+
+  if (p->capture_count >= p->capture_capacity)
+    return;
+
+  const uint64_t idx = p->capture_count;
+  rt_deadline_capture_sample_t *sample = &p->capture_buffer[idx];
+
+  sample->capture_index = idx;
+  sample->probe_total = p->total;
+  sample->frame = frame;
+  sample->slot = slot;
+  sample->duration_us = duration_us;
+  sample->late_threshold_us = p->cfg.late_threshold_us;
+  sample->late = p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us;
+
+  p->capture_count++;
 }
 
 static inline void rt_probe_record(rt_deadline_probe_t *p, uint64_t duration_us)

@@ -17,6 +17,7 @@ typedef struct {
   uint64_t threshold_us[RT_DEADLINE_NUM_THRESHOLDS];
 
   int capture_enable;
+  int capture_snapshot_enable;
   uint64_t capture_samples;
   char capture_path[RT_DEADLINE_CAPTURE_PATH_MAX];
 } rt_deadline_probe_config_t;
@@ -39,6 +40,7 @@ static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
       .late_threshold_us = 500,
       .threshold_us = {100, 200, 500, 1000},
       .capture_enable = 0,
+      .capture_snapshot_enable = 0,
       .capture_samples = 20000,
       .capture_path = "/tmp/rt_deadline_samples.csv",
   };
@@ -161,9 +163,10 @@ static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
   p->capture_dumped = 0;
   p->capture_alloc_failed = 0;
 
-  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d samples=%lu path=%s\n",
+  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d snapshot_enable=%d samples=%lu path=%s\n",
          p->name,
          p->cfg.capture_enable,
+         p->cfg.capture_snapshot_enable,
          p->cfg.capture_samples,
          p->cfg.capture_path);
   fflush(stdout);
@@ -267,6 +270,13 @@ static inline void rt_probe_maybe_snapshot_capture(rt_deadline_probe_t *p)
     return;
 
   if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  /*
+   * CSV snapshots perform synchronous file I/O from the realtime path.
+   * Keep them disabled by default and require an explicit debug opt-in.
+   */
+  if (!p->cfg.capture_snapshot_enable)
     return;
 
   if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)

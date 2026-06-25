@@ -18,6 +18,7 @@ typedef struct {
 
   int capture_enable;
   int capture_snapshot_enable;
+  int capture_final_dump_enable;
   uint64_t capture_samples;
   char capture_path[RT_DEADLINE_CAPTURE_PATH_MAX];
 } rt_deadline_probe_config_t;
@@ -41,6 +42,7 @@ static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
       .threshold_us = {100, 200, 500, 1000},
       .capture_enable = 0,
       .capture_snapshot_enable = 0,
+      .capture_final_dump_enable = 1,
       .capture_samples = 20000,
       .capture_path = "/tmp/rt_deadline_samples.csv",
   };
@@ -163,10 +165,11 @@ static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
   p->capture_dumped = 0;
   p->capture_alloc_failed = 0;
 
-  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d snapshot_enable=%d samples=%lu path=%s\n",
+  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d snapshot_enable=%d final_dump_enable=%d samples=%lu path=%s\n",
          p->name,
          p->cfg.capture_enable,
          p->cfg.capture_snapshot_enable,
+         p->cfg.capture_final_dump_enable,
          p->cfg.capture_samples,
          p->cfg.capture_path);
   fflush(stdout);
@@ -261,6 +264,19 @@ static inline void rt_probe_write_capture_csv(rt_deadline_probe_t *p, int final_
 
 static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
 {
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  /*
+   * Final dumps are performed during controlled shutdown, not periodically
+   * from the realtime path. Keep this behavior explicit and configurable.
+   */
+  if (!p->cfg.capture_final_dump_enable)
+    return;
+
   rt_probe_write_capture_csv(p, 1);
 }
 

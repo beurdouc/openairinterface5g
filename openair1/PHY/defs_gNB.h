@@ -431,6 +431,7 @@ typedef struct PHY_VARS_gNB_s {
 
   time_stats_t l1_tx_proc;
   rt_deadline_probe_t rt_l1_tx_job_probe;
+  rt_deadline_l1tx_context_t rt_l1tx_slot_context;
   time_stats_t l1_rx_proc;
 
   time_stats_t phy_proc_tx;

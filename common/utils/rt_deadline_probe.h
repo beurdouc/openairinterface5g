@@ -24,6 +24,40 @@ typedef struct {
 } rt_deadline_probe_config_t;
 
 typedef struct {
+  int valid;
+  int frame;
+  int slot;
+  int dl_pdsch_count;
+  int dl_prb_total;
+  uint64_t dl_tbs_total;
+  int dl_mcs_min;
+  int dl_mcs_max;
+  int dl_mcs_table_min;
+  int dl_mcs_table_max;
+  int dl_layers_max;
+  int dl_rv_nonzero_count;
+} rt_deadline_l1tx_context_t;
+
+static inline rt_deadline_l1tx_context_t rt_deadline_l1tx_context_invalid(void)
+{
+  rt_deadline_l1tx_context_t ctx = {
+      .valid = 0,
+      .frame = -1,
+      .slot = -1,
+      .dl_pdsch_count = 0,
+      .dl_prb_total = 0,
+      .dl_tbs_total = 0,
+      .dl_mcs_min = -1,
+      .dl_mcs_max = -1,
+      .dl_mcs_table_min = -1,
+      .dl_mcs_table_max = -1,
+      .dl_layers_max = -1,
+      .dl_rv_nonzero_count = 0,
+  };
+  return ctx;
+}
+
+typedef struct {
   uint64_t capture_index;
   uint64_t probe_total;
   int frame;
@@ -31,6 +65,7 @@ typedef struct {
   uint64_t duration_us;
   uint64_t late_threshold_us;
   int late;
+  rt_deadline_l1tx_context_t ctx;
 } rt_deadline_capture_sample_t;
 
 static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
@@ -258,7 +293,7 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
 
       if (!p->capture_header_written) {
         fprintf(p->capture_fd,
-                "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late\n");
+                "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late,context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,dl_mcs_max,dl_mcs_table_min,dl_mcs_table_max,dl_layers_max,dl_rv_nonzero_count\n");
         p->capture_header_written = 1;
       }
     }
@@ -267,14 +302,24 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
       const rt_deadline_capture_sample_t *sample = &p->capture_buffer[seq % p->capture_capacity];
 
       fprintf(p->capture_fd,
-              "%lu,%lu,%d,%d,%lu,%lu,%d\n",
+              "%lu,%lu,%d,%d,%lu,%lu,%d,%d,%d,%d,%lu,%d,%d,%d,%d,%d,%d\n",
               sample->capture_index,
               sample->probe_total,
               sample->frame,
               sample->slot,
               sample->duration_us,
               sample->late_threshold_us,
-              sample->late);
+              sample->late,
+              sample->ctx.valid,
+              sample->ctx.dl_pdsch_count,
+              sample->ctx.dl_prb_total,
+              sample->ctx.dl_tbs_total,
+              sample->ctx.dl_mcs_min,
+              sample->ctx.dl_mcs_max,
+              sample->ctx.dl_mcs_table_min,
+              sample->ctx.dl_mcs_table_max,
+              sample->ctx.dl_layers_max,
+              sample->ctx.dl_rv_nonzero_count);
       flushed++;
     }
 
@@ -343,10 +388,11 @@ static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
   rt_probe_flush_capture_csv(p, 1);
 }
 
-static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
-                                           int frame,
-                                           int slot,
-                                           uint64_t duration_us)
+static inline void rt_probe_capture_sample_with_l1tx_context(rt_deadline_probe_t *p,
+                                                             int frame,
+                                                             int slot,
+                                                             uint64_t duration_us,
+                                                             const rt_deadline_l1tx_context_t *ctx)
 {
   if (p == NULL || !p->initialized)
     return;
@@ -375,9 +421,19 @@ static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
   sample->duration_us = duration_us;
   sample->late_threshold_us = p->cfg.late_threshold_us;
   sample->late = p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us;
+  sample->ctx = ctx != NULL ? *ctx : rt_deadline_l1tx_context_invalid();
 
   __atomic_store_n(&p->capture_write_index, write_index + 1, __ATOMIC_RELEASE);
   __atomic_store_n(&p->capture_count, write_index + 1, __ATOMIC_RELAXED);
+}
+
+static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
+                                           int frame,
+                                           int slot,
+                                           uint64_t duration_us)
+{
+  rt_deadline_l1tx_context_t ctx = rt_deadline_l1tx_context_invalid();
+  rt_probe_capture_sample_with_l1tx_context(p, frame, slot, duration_us, &ctx);
 }
 
 static inline void rt_probe_record(rt_deadline_probe_t *p, uint64_t duration_us)

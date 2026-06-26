@@ -277,7 +277,17 @@ void *L1_tx_thread(void *arg) {
 
        const uint64_t rt_l1_tx_duration_us = rt_probe_ns_to_us(rt_probe_now_ns() - rt_l1_tx_start_ns);
        rt_probe_record(&gNB->rt_l1_tx_job_probe, rt_l1_tx_duration_us);
-       rt_probe_capture_sample(&gNB->rt_l1_tx_job_probe, info->frame, info->slot, rt_l1_tx_duration_us);
+       rt_deadline_l1tx_context_t rt_l1tx_ctx = rt_deadline_l1tx_context_invalid();
+       if (gNB->rt_l1tx_slot_context.valid &&
+           gNB->rt_l1tx_slot_context.frame == info->frame &&
+           gNB->rt_l1tx_slot_context.slot == info->slot)
+         rt_l1tx_ctx = gNB->rt_l1tx_slot_context;
+
+       rt_probe_capture_sample_with_l1tx_context(&gNB->rt_l1_tx_job_probe,
+                                                 info->frame,
+                                                 info->slot,
+                                                 rt_l1_tx_duration_us,
+                                                 &rt_l1tx_ctx);
        rt_probe_maybe_log_late(&gNB->rt_l1_tx_job_probe, info->frame, info->slot, rt_l1_tx_duration_us, g_l1tx_rt_deadline_cfg.late_threshold_us);
        rt_probe_maybe_report(&gNB->rt_l1_tx_job_probe, g_l1tx_rt_deadline_cfg.report_period);
      }

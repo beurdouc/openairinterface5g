@@ -112,6 +112,12 @@ typedef struct {
   uint64_t capture_count;
   uint64_t capture_capacity;
   uint64_t capture_last_dump_count;
+  uint64_t capture_write_index;
+  uint64_t capture_read_index;
+  uint64_t capture_dropped_count;
+  FILE *capture_fd;
+  int capture_header_written;
+  int capture_writer_busy;
   int capture_dumped;
   int capture_alloc_failed;
 } rt_deadline_probe_t;
@@ -149,6 +155,11 @@ static inline void rt_probe_reset_capture(rt_deadline_probe_t *p)
   if (p == NULL)
     return;
 
+  if (p->capture_fd != NULL) {
+    fclose(p->capture_fd);
+    p->capture_fd = NULL;
+  }
+
   if (p->capture_buffer != NULL) {
     free(p->capture_buffer);
     p->capture_buffer = NULL;
@@ -157,6 +168,11 @@ static inline void rt_probe_reset_capture(rt_deadline_probe_t *p)
   p->capture_count = 0;
   p->capture_capacity = 0;
   p->capture_last_dump_count = 0;
+  p->capture_write_index = 0;
+  p->capture_read_index = 0;
+  p->capture_dropped_count = 0;
+  p->capture_header_written = 0;
+  p->capture_writer_busy = 0;
   p->capture_dumped = 0;
   p->capture_alloc_failed = 0;
 }
@@ -193,6 +209,13 @@ static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
 
   p->capture_capacity = p->cfg.capture_samples;
   p->capture_count = 0;
+  p->capture_last_dump_count = 0;
+  p->capture_write_index = 0;
+  p->capture_read_index = 0;
+  p->capture_dropped_count = 0;
+  p->capture_fd = NULL;
+  p->capture_header_written = 0;
+  p->capture_writer_busy = 0;
   p->capture_dumped = 0;
   p->capture_alloc_failed = 0;
 
@@ -301,6 +324,131 @@ static inline void rt_probe_write_capture_csv(rt_deadline_probe_t *p, int final_
          p->cfg.capture_path);
 }
 
+
+static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_dump)
+{
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  if (!final_dump && !p->cfg.capture_snapshot_enable)
+    return;
+
+  if (p->capture_buffer == NULL || p->capture_capacity == 0)
+    return;
+
+  if (p->cfg.capture_path[0] == '\0')
+    return;
+
+  if (p->capture_dumped)
+    return;
+
+  if (__sync_lock_test_and_set(&p->capture_writer_busy, 1)) {
+    if (!final_dump)
+      return;
+
+    while (__sync_lock_test_and_set(&p->capture_writer_busy, 1)) {
+      const struct timespec wait_ts = {.tv_sec = 0, .tv_nsec = 1000000L};
+      nanosleep(&wait_ts, NULL);
+    }
+  }
+
+  const uint64_t read_index = __atomic_load_n(&p->capture_read_index, __ATOMIC_ACQUIRE);
+  const uint64_t write_index = __atomic_load_n(&p->capture_write_index, __ATOMIC_ACQUIRE);
+  uint64_t flushed = 0;
+
+  if (write_index > read_index) {
+    if (p->capture_fd == NULL) {
+      p->capture_fd = fopen(p->cfg.capture_path, p->capture_header_written ? "a" : "w");
+      if (p->capture_fd == NULL) {
+        printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fopen\n",
+               p->name,
+               write_index - read_index,
+               p->cfg.capture_path);
+        fflush(stdout);
+        __sync_lock_release(&p->capture_writer_busy);
+        return;
+      }
+
+      if (!p->capture_header_written) {
+        fprintf(p->capture_fd,
+                "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late,context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,dl_mcs_max,dl_layers_max,dl_rv_nonzero_count\n");
+        p->capture_header_written = 1;
+      }
+    }
+
+    for (uint64_t seq = read_index; seq < write_index; seq++) {
+      const rt_deadline_capture_sample_t *sample = &p->capture_buffer[seq % p->capture_capacity];
+
+      fprintf(p->capture_fd,
+              "%lu,%lu,%d,%d,%lu,%lu,%d,%d,%d,%d,%lu,%d,%d,%d,%d\n",
+              sample->capture_index,
+              sample->probe_total,
+              sample->frame,
+              sample->slot,
+              sample->duration_us,
+              sample->late_threshold_us,
+              sample->late,
+              sample->ctx.valid,
+              sample->ctx.dl_pdsch_count,
+              sample->ctx.dl_prb_total,
+              sample->ctx.dl_tbs_total,
+              sample->ctx.dl_mcs_min,
+              sample->ctx.dl_mcs_max,
+              sample->ctx.dl_layers_max,
+              sample->ctx.dl_rv_nonzero_count);
+      flushed++;
+    }
+
+    if (fflush(p->capture_fd) != 0) {
+      printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fflush\n",
+             p->name,
+             flushed,
+             p->cfg.capture_path);
+      fflush(stdout);
+      __sync_lock_release(&p->capture_writer_busy);
+      return;
+    }
+
+    __atomic_store_n(&p->capture_read_index, write_index, __ATOMIC_RELEASE);
+    p->capture_last_dump_count = write_index;
+  }
+
+  if (final_dump && p->capture_fd != NULL) {
+    if (fclose(p->capture_fd) != 0) {
+      printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fclose\n",
+             p->name,
+             flushed,
+             p->cfg.capture_path);
+      fflush(stdout);
+      p->capture_fd = NULL;
+      __sync_lock_release(&p->capture_writer_busy);
+      return;
+    }
+    p->capture_fd = NULL;
+  }
+
+  if (final_dump)
+    p->capture_dumped = 1;
+
+  if (flushed > 0 || final_dump) {
+    printf("%s probe=%s flushed=%lu produced=%lu dropped=%lu capacity=%lu final=%d path=%s\n",
+           final_dump ? "RT_DEADLINE_CAPTURE_DUMP" : "RT_DEADLINE_CAPTURE_SNAPSHOT",
+           p->name,
+           flushed,
+           write_index,
+           __atomic_load_n(&p->capture_dropped_count, __ATOMIC_RELAXED),
+           p->capture_capacity,
+           final_dump,
+           p->cfg.capture_path);
+    fflush(stdout);
+  }
+
+  __sync_lock_release(&p->capture_writer_busy);
+}
+
 static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
 {
   if (p == NULL || !p->initialized)
@@ -316,42 +464,16 @@ static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
   if (!p->cfg.capture_final_dump_enable)
     return;
 
-  rt_probe_write_capture_csv(p, 1);
+  rt_probe_flush_capture_csv(p, 1);
 }
 
 static inline void rt_probe_maybe_snapshot_capture(rt_deadline_probe_t *p)
 {
-  if (p == NULL || !p->initialized)
-    return;
-
-  if (!p->cfg.enabled || !p->cfg.capture_enable)
-    return;
-
   /*
-   * CSV snapshots perform synchronous file I/O from the realtime path.
-   * Keep them disabled by default and require an explicit debug opt-in.
+   * Do not write CSV snapshots from the realtime producer path.
+   * Periodic CSV flushing is performed from the low-priority L1_stats thread.
    */
-  if (!p->cfg.capture_snapshot_enable)
-    return;
-
-  if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
-    return;
-
-  if (p->capture_count == 0)
-    return;
-
-  if (p->capture_count >= p->capture_capacity) {
-    rt_probe_write_capture_csv(p, 1);
-    return;
-  }
-
-  if (p->cfg.report_period == 0)
-    return;
-
-  if (p->capture_count - p->capture_last_dump_count < p->cfg.report_period)
-    return;
-
-  rt_probe_write_capture_csv(p, 0);
+  (void)p;
 }
 
 static inline void rt_probe_capture_sample_with_l1tx_context(rt_deadline_probe_t *p,
@@ -369,15 +491,18 @@ static inline void rt_probe_capture_sample_with_l1tx_context(rt_deadline_probe_t
   if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
     return;
 
-  if (p->capture_count >= p->capture_capacity) {
-    rt_probe_maybe_snapshot_capture(p);
+  const uint64_t read_index = __atomic_load_n(&p->capture_read_index, __ATOMIC_ACQUIRE);
+  const uint64_t write_index = __atomic_load_n(&p->capture_write_index, __ATOMIC_RELAXED);
+
+  if (write_index - read_index >= p->capture_capacity) {
+    __atomic_add_fetch(&p->capture_dropped_count, 1, __ATOMIC_RELAXED);
     return;
   }
 
-  const uint64_t idx = p->capture_count;
+  const uint64_t idx = write_index % p->capture_capacity;
   rt_deadline_capture_sample_t *sample = &p->capture_buffer[idx];
 
-  sample->capture_index = idx;
+  sample->capture_index = write_index;
   sample->probe_total = p->total;
   sample->frame = frame;
   sample->slot = slot;
@@ -386,9 +511,8 @@ static inline void rt_probe_capture_sample_with_l1tx_context(rt_deadline_probe_t
   sample->late = p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us;
   sample->ctx = ctx != NULL ? *ctx : rt_deadline_l1tx_context_invalid();
 
-  p->capture_count++;
-
-  rt_probe_maybe_snapshot_capture(p);
+  __atomic_store_n(&p->capture_write_index, write_index + 1, __ATOMIC_RELEASE);
+  __atomic_store_n(&p->capture_count, write_index + 1, __ATOMIC_RELAXED);
 }
 
 static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,

@@ -606,6 +606,12 @@ void *nrL1_stats_thread(void *param) {
     dump_L1_meas_stats(gNB, ru, output, L1STATSSTRLEN);
     fprintf(fd,"%s\n",output);
     fflush(fd);
+    /*
+     * Flush L1TX deadline samples from the low-priority stats thread.
+     * The realtime L1TX path only writes to the bounded memory buffer.
+     */
+    rt_probe_flush_capture_csv(&gNB->rt_l1_tx_job_probe, 0);
+
   }
 
   if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {

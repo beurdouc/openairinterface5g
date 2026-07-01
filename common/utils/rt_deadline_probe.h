@@ -18,6 +18,7 @@ typedef struct {
 
   int capture_enable;
   int capture_snapshot_enable;
+  int capture_async_flush_enable;
   int capture_final_dump_enable;
   uint64_t capture_samples;
   char capture_path[RT_DEADLINE_CAPTURE_PATH_MAX];
@@ -73,6 +74,7 @@ static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
       .threshold_us = {100, 200, 500, 1000},
       .capture_enable = 0,
       .capture_snapshot_enable = 0,
+      .capture_async_flush_enable = 0,
       .capture_final_dump_enable = 1,
       .capture_samples = 20000,
       .capture_path = "/tmp/rt_deadline_samples.csv",
@@ -219,10 +221,11 @@ static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
   p->capture_dumped = 0;
   p->capture_alloc_failed = 0;
 
-  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d snapshot_enable=%d final_dump_enable=%d samples=%lu path=%s\n",
+  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d snapshot_enable=%d async_flush_enable=%d final_dump_enable=%d samples=%lu path=%s\n",
          p->name,
          p->cfg.capture_enable,
          p->cfg.capture_snapshot_enable,
+         p->cfg.capture_async_flush_enable,
          p->cfg.capture_final_dump_enable,
          p->cfg.capture_samples,
          p->cfg.capture_path);
@@ -333,7 +336,7 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
   if (!p->cfg.enabled || !p->cfg.capture_enable)
     return;
 
-  if (!final_dump && !p->cfg.capture_snapshot_enable)
+  if (!final_dump && !p->cfg.capture_async_flush_enable)
     return;
 
   if (p->capture_buffer == NULL || p->capture_capacity == 0)
@@ -435,7 +438,7 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
 
   if (flushed > 0 || final_dump) {
     printf("%s probe=%s flushed=%lu produced=%lu dropped=%lu capacity=%lu final=%d path=%s\n",
-           final_dump ? "RT_DEADLINE_CAPTURE_DUMP" : "RT_DEADLINE_CAPTURE_SNAPSHOT",
+           final_dump ? "RT_DEADLINE_CAPTURE_DUMP" : "RT_DEADLINE_CAPTURE_ASYNC_FLUSH",
            p->name,
            flushed,
            write_index,
@@ -471,7 +474,8 @@ static inline void rt_probe_maybe_snapshot_capture(rt_deadline_probe_t *p)
 {
   /*
    * Do not write CSV snapshots from the realtime producer path.
-   * Periodic CSV flushing is performed from the low-priority L1_stats thread.
+   * Periodic CSV flushing is performed from the low-priority L1_stats thread
+   * when capture_async_flush_enable is set.
    */
   (void)p;
 }

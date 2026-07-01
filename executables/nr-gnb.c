@@ -73,6 +73,7 @@ static void load_l1tx_rt_deadline_config_once(void)
   g_l1tx_rt_deadline_cfg.threshold_us[3] = 2000;
   g_l1tx_rt_deadline_cfg.capture_enable = 0;
   g_l1tx_rt_deadline_cfg.capture_snapshot_enable = 0;
+  g_l1tx_rt_deadline_cfg.capture_async_flush_enable = 0;
   g_l1tx_rt_deadline_cfg.capture_final_dump_enable = 1;
   g_l1tx_rt_deadline_cfg.capture_samples = 20000;
   snprintf(g_l1tx_rt_deadline_cfg.capture_path,
@@ -88,6 +89,7 @@ static void load_l1tx_rt_deadline_config_once(void)
   int threshold3_us = (int)g_l1tx_rt_deadline_cfg.threshold_us[3];
   int capture_enable = g_l1tx_rt_deadline_cfg.capture_enable;
   int capture_snapshot_enable = g_l1tx_rt_deadline_cfg.capture_snapshot_enable;
+  int capture_async_flush_enable = g_l1tx_rt_deadline_cfg.capture_async_flush_enable;
   int capture_final_dump_enable = g_l1tx_rt_deadline_cfg.capture_final_dump_enable;
   int capture_samples = (int)g_l1tx_rt_deadline_cfg.capture_samples;
 
@@ -101,6 +103,7 @@ static void load_l1tx_rt_deadline_config_once(void)
     {"threshold3_us", NULL, 0, .iptr = &threshold3_us, .defintval = threshold3_us, TYPE_INT, 0, NULL},
     {"capture_enable", NULL, 0, .iptr = &capture_enable, .defintval = capture_enable, TYPE_INT, 0, NULL},
     {"capture_snapshot_enable", NULL, 0, .iptr = &capture_snapshot_enable, .defintval = capture_snapshot_enable, TYPE_INT, 0, NULL},
+    {"capture_async_flush_enable", NULL, 0, .iptr = &capture_async_flush_enable, .defintval = capture_async_flush_enable, TYPE_INT, 0, NULL},
     {"capture_final_dump_enable", NULL, 0, .iptr = &capture_final_dump_enable, .defintval = capture_final_dump_enable, TYPE_INT, 0, NULL},
     {"capture_samples", NULL, 0, .iptr = &capture_samples, .defintval = capture_samples, TYPE_INT, 0, NULL},
   };
@@ -116,12 +119,13 @@ static void load_l1tx_rt_deadline_config_once(void)
   g_l1tx_rt_deadline_cfg.threshold_us[3] = threshold3_us > 0 ? (uint64_t)threshold3_us : g_l1tx_rt_deadline_cfg.threshold_us[3];
   g_l1tx_rt_deadline_cfg.capture_enable = capture_enable;
   g_l1tx_rt_deadline_cfg.capture_snapshot_enable = capture_snapshot_enable;
+  g_l1tx_rt_deadline_cfg.capture_async_flush_enable = capture_async_flush_enable;
   g_l1tx_rt_deadline_cfg.capture_final_dump_enable = capture_final_dump_enable;
   g_l1tx_rt_deadline_cfg.capture_samples = capture_samples > 0 ? (uint64_t)capture_samples : g_l1tx_rt_deadline_cfg.capture_samples;
 
   printf("RT_DEADLINE_CONFIG_L1TX enabled=%d report_period=%lu late_threshold_us=%lu "
          "threshold0_us=%lu threshold1_us=%lu threshold2_us=%lu threshold3_us=%lu "
-         "capture_enable=%d capture_snapshot_enable=%d capture_final_dump_enable=%d capture_samples=%lu capture_path=%s\n",
+         "capture_enable=%d capture_snapshot_enable=%d capture_async_flush_enable=%d capture_final_dump_enable=%d capture_samples=%lu capture_path=%s\n",
          g_l1tx_rt_deadline_cfg.enabled,
          g_l1tx_rt_deadline_cfg.report_period,
          g_l1tx_rt_deadline_cfg.late_threshold_us,
@@ -131,6 +135,7 @@ static void load_l1tx_rt_deadline_config_once(void)
          g_l1tx_rt_deadline_cfg.threshold_us[3],
          g_l1tx_rt_deadline_cfg.capture_enable,
          g_l1tx_rt_deadline_cfg.capture_snapshot_enable,
+         g_l1tx_rt_deadline_cfg.capture_async_flush_enable,
          g_l1tx_rt_deadline_cfg.capture_final_dump_enable,
          g_l1tx_rt_deadline_cfg.capture_samples,
          g_l1tx_rt_deadline_cfg.capture_path);

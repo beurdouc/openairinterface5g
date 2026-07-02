@@ -5,13 +5,17 @@
 #
 # Input CSV format:
 #   capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late
+#
+# Optional context columns, when present:
+#   context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,
+#   dl_mcs_max,dl_layers_max,dl_rv_nonzero_count
 
 import argparse
 import csv
 import math
 import sys
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 
 REQUIRED_COLUMNS = {
@@ -25,10 +29,28 @@ REQUIRED_COLUMNS = {
 }
 
 
+OPTIONAL_INT_COLUMNS = {
+    "context_valid",
+    "dl_pdsch_count",
+    "dl_prb_total",
+    "dl_tbs_total",
+    "dl_mcs_min",
+    "dl_mcs_max",
+    "dl_layers_max",
+    "dl_rv_nonzero_count",
+}
+
+
 def ratio_ppm(count: int, total: int) -> int:
     if total == 0:
         return 0
     return int((count * 1_000_000 + total // 2) // total)
+
+
+def ratio_pct(count: int, total: int) -> float:
+    if total == 0:
+        return 0.0
+    return 100.0 * count / total
 
 
 def percentile_nearest_rank(sorted_values: Sequence[int], percentile: float) -> int:
@@ -53,9 +75,12 @@ def load_capture(path: Path) -> List[Dict[str, int]]:
         if reader.fieldnames is None:
             raise ValueError("missing CSV header")
 
-        missing = REQUIRED_COLUMNS.difference(reader.fieldnames)
+        fieldnames = set(reader.fieldnames)
+        missing = REQUIRED_COLUMNS.difference(fieldnames)
         if missing:
             raise ValueError(f"missing required columns: {', '.join(sorted(missing))}")
+
+        optional_columns = OPTIONAL_INT_COLUMNS.intersection(fieldnames)
 
         for line_no, row in enumerate(reader, start=2):
             try:
@@ -68,6 +93,12 @@ def load_capture(path: Path) -> List[Dict[str, int]]:
                     "late_threshold_us": int(row["late_threshold_us"]),
                     "late": int(row["late"]),
                 }
+
+                for column in optional_columns:
+                    value = row.get(column, "")
+                    if value != "":
+                        parsed[column] = int(value)
+
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"invalid integer value at CSV line {line_no}: {exc}") from exc
 
@@ -121,7 +152,93 @@ def burst_stats(rows: Sequence[Dict[str, int]], threshold_us: int) -> Tuple[int,
     return over_count, burst_count, longest_burst
 
 
-def summarize(rows: Sequence[Dict[str, int]], thresholds: Sequence[int]) -> str:
+def tti_histogram_stats(rows: Sequence[Dict[str, int]], tti_us: int) -> Dict[str, int]:
+    if tti_us <= 0:
+        raise ValueError("tti_us must be > 0")
+
+    stats = {
+        "le_1tti": 0,
+        "gt1_le2tti": 0,
+        "gt2_le3tti": 0,
+        "gt3tti": 0,
+    }
+
+    for row in rows:
+        duration_us = row["duration_us"]
+        if duration_us <= tti_us:
+            stats["le_1tti"] += 1
+        elif duration_us <= 2 * tti_us:
+            stats["gt1_le2tti"] += 1
+        elif duration_us <= 3 * tti_us:
+            stats["gt2_le3tti"] += 1
+        else:
+            stats["gt3tti"] += 1
+
+    return stats
+
+
+def append_tti_histogram_lines(
+    lines: List[str],
+    rows: Sequence[Dict[str, int]],
+    tti_us: int,
+    prefix: str = "",
+) -> None:
+    total = len(rows)
+    durations = [row["duration_us"] for row in rows]
+    late_count = sum(1 for row in rows if row["late"] != 0)
+    stats = tti_histogram_stats(rows, tti_us)
+
+    name = f"{prefix}tti" if prefix else "tti"
+
+    lines.append(
+        f"{name}_histogram "
+        f"tti_us={tti_us} "
+        f"samples={total} "
+        f"avg_us={sum(durations) / total:.3f} "
+        f"max_us={max(durations)} "
+        f"max_tti_equiv={max(durations) / tti_us:.3f} "
+        f"late_count={late_count} "
+        f"late_ratio_ppm={ratio_ppm(late_count, total)}"
+    )
+
+    lines.append(
+        f"{name}_bucket "
+        f"bucket=<=1_tti "
+        f"count={stats['le_1tti']} "
+        f"ratio_ppm={ratio_ppm(stats['le_1tti'], total)} "
+        f"ratio_pct={ratio_pct(stats['le_1tti'], total):.6f}"
+    )
+
+    lines.append(
+        f"{name}_bucket "
+        f"bucket=>1_<=2_tti "
+        f"count={stats['gt1_le2tti']} "
+        f"ratio_ppm={ratio_ppm(stats['gt1_le2tti'], total)} "
+        f"ratio_pct={ratio_pct(stats['gt1_le2tti'], total):.6f}"
+    )
+
+    lines.append(
+        f"{name}_bucket "
+        f"bucket=>2_<=3_tti "
+        f"count={stats['gt2_le3tti']} "
+        f"ratio_ppm={ratio_ppm(stats['gt2_le3tti'], total)} "
+        f"ratio_pct={ratio_pct(stats['gt2_le3tti'], total):.6f}"
+    )
+
+    lines.append(
+        f"{name}_bucket "
+        f"bucket=>3_tti "
+        f"count={stats['gt3tti']} "
+        f"ratio_ppm={ratio_ppm(stats['gt3tti'], total)} "
+        f"ratio_pct={ratio_pct(stats['gt3tti'], total):.6f}"
+    )
+
+
+def summarize(
+    rows: Sequence[Dict[str, int]],
+    thresholds: Sequence[int],
+    tti_us: Optional[int],
+) -> str:
     durations = [row["duration_us"] for row in rows]
     sorted_durations = sorted(durations)
     total = len(rows)
@@ -163,6 +280,29 @@ def summarize(rows: Sequence[Dict[str, int]], thresholds: Sequence[int]) -> str:
             f"longest_burst={longest_burst}"
         )
 
+    if tti_us is not None:
+        append_tti_histogram_lines(lines, rows, tti_us)
+
+        if any("context_valid" in row for row in rows):
+            context_valid_rows = [row for row in rows if row.get("context_valid", 0) == 1]
+            context_invalid_rows = [row for row in rows if row.get("context_valid", 0) == 0]
+
+            if context_valid_rows:
+                append_tti_histogram_lines(
+                    lines,
+                    context_valid_rows,
+                    tti_us,
+                    prefix="context_valid_",
+                )
+
+            if context_invalid_rows:
+                append_tti_histogram_lines(
+                    lines,
+                    context_invalid_rows,
+                    tti_us,
+                    prefix="context_invalid_",
+                )
+
     warnings = validate_order(rows)
     for warning in warnings:
         lines.append(f"warning={warning}")
@@ -187,6 +327,15 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Threshold in microseconds. Can be provided multiple times.",
     )
+    parser.add_argument(
+        "--tti-us",
+        type=int,
+        default=None,
+        help=(
+            "Report duration histogram in TTI units using the provided TTI "
+            "duration in microseconds, for example --tti-us 1000."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -198,7 +347,7 @@ def main() -> int:
 
     try:
         rows = load_capture(args.csv_path)
-        print(summarize(rows, thresholds))
+        print(summarize(rows, thresholds, args.tti_us))
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

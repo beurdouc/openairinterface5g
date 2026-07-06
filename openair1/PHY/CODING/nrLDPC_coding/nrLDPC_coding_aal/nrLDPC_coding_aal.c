@@ -491,18 +491,18 @@ static int init_op_data_objs_enc(struct rte_bbdev_op_data *bufs,
                                  struct rte_mempool *mbuf_pool,
                                  enum op_data_type op_type,
                                  uint16_t min_alignment,
-                                 int h)
+                                 int h, int r)
 {
   bool large_input = false;
   int j = 0;
-  for (int i = 0; i < nrLDPC_slot_encoding_parameters->TBs[h].C; ++i) {
+  for (int i = r; i < nrLDPC_slot_encoding_parameters->TBs[h].C && i < r + 8; ++i) {
     uint32_t data_len = (nrLDPC_slot_encoding_parameters->TBs[h].K - nrLDPC_slot_encoding_parameters->TBs[h].F + 7) / 8;
     char *data;
     struct rte_mbuf *m_head = rte_pktmbuf_alloc(mbuf_pool);
     AssertFatal(m_head != NULL,
                 "Not enough mbufs in %d data type mbuf pool (needed %u, available %u)",
                 op_type,
-                nrLDPC_slot_encoding_parameters->TBs[h].C,
+                min(8, nrLDPC_slot_encoding_parameters->TBs[h].C - r),
                 mbuf_pool->size);
 
     if (data_len > RTE_BBDEV_LDPC_E_MAX_MBUF) {
@@ -657,12 +657,12 @@ static void set_ldpc_enc_op(struct rte_bbdev_enc_op **ops,
                             struct rte_bbdev_op_data *inputs,
                             struct rte_bbdev_op_data *outputs,
                             nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encoding_parameters,
-                            int h)
+                            int h, int r)
 {
   int j = 0;
   // The T2 only supports CB mode, and does not TB mode special case handling.
   bool special_case_tb_mode = !active_dev.is_t2 && (nrLDPC_slot_encoding_parameters->TBs[h].C == 1);
-  for (int i = 0; i < nrLDPC_slot_encoding_parameters->TBs[h].C; ++i) {
+  for (int i = r; i < nrLDPC_slot_encoding_parameters->TBs[h].C && i < r + 8; ++i) {
     ops[j]->ldpc_enc.basegraph = nrLDPC_slot_encoding_parameters->TBs[h].BG;
     ops[j]->ldpc_enc.z_c = nrLDPC_slot_encoding_parameters->TBs[h].Z;
     ops[j]->ldpc_enc.q_m = nrLDPC_slot_encoding_parameters->TBs[h].Qm;
@@ -724,7 +724,7 @@ static int retrieve_ldpc_dec_op(struct rte_bbdev_dec_op **ops, nrLDPC_slot_decod
   return 0;
 }
 
-static int retrieve_ldpc_enc_op(struct rte_bbdev_enc_op **ops, nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encoding_parameters, int h)
+static int retrieve_ldpc_enc_op(struct rte_bbdev_enc_op **ops, nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encoding_parameters, int h, int first_r)
 {
   uint8_t *p_out = NULL;
   int j = 0;
@@ -732,7 +732,14 @@ static int retrieve_ldpc_enc_op(struct rte_bbdev_enc_op **ops, nrLDPC_slot_encod
   int bit_offset = 0;
   int byte_offset = 0;
   p_out = nrLDPC_slot_encoding_parameters->TBs[h].output;
-  for (int r = 0; r < nrLDPC_slot_encoding_parameters->TBs[h].C; ++r) {
+
+  for (int r = 0; r < first_r; ++r) {
+    E_sum += nrLDPC_slot_encoding_parameters->TBs[h].segments[r].E;
+  }
+  byte_offset = (E_sum + 7) / 8;
+  bit_offset = E_sum % 8;
+
+  for (int r = first_r; r < nrLDPC_slot_encoding_parameters->TBs[h].C && r < first_r + 8; ++r) {
     struct rte_bbdev_op_data *output = &ops[j]->ldpc_enc.output;
     struct rte_mbuf *m = output->data;
     uint16_t data_len = rte_pktmbuf_data_len(m) - output->offset;
@@ -851,9 +858,10 @@ static int pmd_lcore_ldpc_enc(void *arg)
   struct thread_params *tp = arg;
   nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encoding_parameters = tp->nrLDPC_slot_encoding_parameters;
   int h = tp->h;
+  int r = tp->r;
   int time_out = 0;
   const uint16_t queue_id = tp->queue_id;
-  const uint16_t num_segments = nrLDPC_slot_encoding_parameters->TBs[h].C;
+  const uint16_t num_segments = min(8, nrLDPC_slot_encoding_parameters->TBs[h].C - r);
   struct rte_bbdev_enc_op *ops_enq[num_segments];
   struct rte_bbdev_enc_op *ops_deq[num_segments];
   struct data_buffers *bufs = tp->data_buffers;
@@ -865,7 +873,7 @@ static int pmd_lcore_ldpc_enc(void *arg)
 
   int ret = rte_bbdev_enc_op_alloc_bulk(tp->bbdev_op_pool, ops_enq, num_segments);
   AssertFatal(ret == 0, "Allocation failed for %d ops", num_segments);
-  set_ldpc_enc_op(ops_enq, bufs->inputs, bufs->hard_outputs, nrLDPC_slot_encoding_parameters, h);
+  set_ldpc_enc_op(ops_enq, bufs->inputs, bufs->hard_outputs, nrLDPC_slot_encoding_parameters, h, r);
 
   if (nrLDPC_slot_encoding_parameters->tprep != NULL)
     stop_meas(nrLDPC_slot_encoding_parameters->tprep);
@@ -888,7 +896,7 @@ static int pmd_lcore_ldpc_enc(void *arg)
     stop_meas(nrLDPC_slot_encoding_parameters->tparity);
   if (nrLDPC_slot_encoding_parameters->toutput != NULL)
     start_meas(nrLDPC_slot_encoding_parameters->toutput);
-  ret = retrieve_ldpc_enc_op(ops_deq, nrLDPC_slot_encoding_parameters, h);
+  ret = retrieve_ldpc_enc_op(ops_deq, nrLDPC_slot_encoding_parameters, h, r);
   AssertFatal(ret == 0, "Failed to retrieve LDPC encoding op!");
   if (nrLDPC_slot_encoding_parameters->toutput != NULL)
   rte_bbdev_enc_op_free_bulk(ops_enq, num_segments);
@@ -954,7 +962,7 @@ int32_t start_pmd_enc(struct active_device *ad,
                       struct test_op_params *op_params,
                       struct data_buffers *data_buffers,
                       nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_encoding_parameters,
-                      int h)
+                      int h, int r)
 {
   unsigned int lcore_id, used_cores = 0;
   uint16_t num_lcores;
@@ -971,6 +979,7 @@ int32_t start_pmd_enc(struct active_device *ad,
   t_params[0].iter_count = 0;
   t_params[0].nrLDPC_slot_encoding_parameters = nrLDPC_slot_encoding_parameters;
   t_params[0].h = h;
+  t_params[0].r = r;
   used_cores++;
   // For now, we never enter here, we don't use the DPDK thread pool
   RTE_LCORE_FOREACH_WORKER(lcore_id)
@@ -986,6 +995,7 @@ int32_t start_pmd_enc(struct active_device *ad,
     t_params[used_cores].iter_count = 0;
     t_params[used_cores].nrLDPC_slot_encoding_parameters = nrLDPC_slot_encoding_parameters;
     t_params[used_cores].h = h;
+    t_params[used_cores].r = r;
     rte_eal_remote_launch(pmd_lcore_ldpc_enc, &t_params[used_cores++], lcore_id);
   }
   rte_atomic16_set(&op_params->sync, SYNC_START);
@@ -1315,40 +1325,42 @@ int32_t nrLDPC_coding_encoder(nrLDPC_slot_encoding_parameters_t *nrLDPC_slot_enc
 {
   int ret = 0;
   for (int h = 0; h < nrLDPC_slot_encoding_parameters->nb_TBs; ++h) {
-    pthread_mutex_lock(&encode_mutex);
-    if (nrLDPC_slot_encoding_parameters->tprep != NULL)
-      start_meas(nrLDPC_slot_encoding_parameters->tprep);
+    for (int r = 0; r < nrLDPC_slot_encoding_parameters->TBs[h].C; r += 8) {
+      pthread_mutex_lock(&encode_mutex);
+      if (nrLDPC_slot_encoding_parameters->tprep != NULL)
+        start_meas(nrLDPC_slot_encoding_parameters->tprep);
 
-    const uint16_t num_segments = nrLDPC_slot_encoding_parameters->TBs[h].C;
+      const uint16_t num_segments = min(8, nrLDPC_slot_encoding_parameters->TBs[h].C - r);
 
-    int socket_id = active_dev.info.socket_id;
+      int socket_id = active_dev.info.socket_id;
 
-    // fill_queue_buffers -> init_op_data_objs
-    struct rte_mempool *mbuf_pools[2] = {active_dev.in_mbuf_pool, active_dev.hard_out_mbuf_pool};
-    struct data_buffers data_buffers;
-    struct rte_bbdev_op_data **queue_ops[2] = {&data_buffers.inputs, &data_buffers.hard_outputs};
+      // fill_queue_buffers -> init_op_data_objs
+      struct rte_mempool *mbuf_pools[2] = {active_dev.in_mbuf_pool, active_dev.hard_out_mbuf_pool};
+      struct data_buffers data_buffers;
+      struct rte_bbdev_op_data **queue_ops[2] = {&data_buffers.inputs, &data_buffers.hard_outputs};
 
-    for (enum op_data_type type = DATA_INPUT; type < 2; ++type) {
-      ret = allocate_buffers_on_socket(queue_ops[type], num_segments * sizeof(struct rte_bbdev_op_data), socket_id);
-      AssertFatal(ret == 0, "Couldn't allocate memory for rte_bbdev_op_data structs");
-      ret = init_op_data_objs_enc(*queue_ops[type],
-                                  nrLDPC_slot_encoding_parameters,
-                                  mbuf_pools[type],
-                                  type,
-                                  active_dev.info.drv.min_alignment,
-                                  h);
-      AssertFatal(ret == 0, "Couldn't init rte_bbdev_op_data structs");
+      for (enum op_data_type type = DATA_INPUT; type < 2; ++type) {
+        ret = allocate_buffers_on_socket(queue_ops[type], num_segments * sizeof(struct rte_bbdev_op_data), socket_id);
+        AssertFatal(ret == 0, "Couldn't allocate memory for rte_bbdev_op_data structs");
+        ret = init_op_data_objs_enc(*queue_ops[type],
+                                    nrLDPC_slot_encoding_parameters,
+                                    mbuf_pools[type],
+                                    type,
+                                    active_dev.info.drv.min_alignment,
+                                    h, r);
+        AssertFatal(ret == 0, "Couldn't init rte_bbdev_op_data structs");
+      }
+
+      ret |= start_pmd_enc(&active_dev, op_params, &data_buffers, nrLDPC_slot_encoding_parameters, h, r);
+
+      for (enum op_data_type type = DATA_INPUT; type < 2; ++type) {
+        for (int segment = 0; segment < num_segments; ++segment)
+          rte_pktmbuf_free((*queue_ops[type])[segment].data);
+        rte_free(*queue_ops[type]);
+      }
+
+      pthread_mutex_unlock(&encode_mutex);
     }
-
-    ret |= start_pmd_enc(&active_dev, op_params, &data_buffers, nrLDPC_slot_encoding_parameters, h);
-
-    for (enum op_data_type type = DATA_INPUT; type < 2; ++type) {
-      for (int segment = 0; segment < num_segments; ++segment)
-        rte_pktmbuf_free((*queue_ops[type])[segment].data);
-      rte_free(*queue_ops[type]);
-    }
-
-    pthread_mutex_unlock(&encode_mutex);
   }
   return ret;
 }

@@ -12,6 +12,7 @@
 
 import argparse
 import csv
+import json
 import math
 import sys
 from pathlib import Path
@@ -238,6 +239,199 @@ def append_tti_histogram_lines(
     )
 
 
+def duration_stats(rows: Sequence[Dict[str, int]]) -> Dict[str, float]:
+    durations = [row["duration_us"] for row in rows]
+    sorted_durations = sorted(durations)
+
+    return {
+        "min_us": min(durations),
+        "avg_us": round(sum(durations) / len(durations), 3),
+        "max_us": max(durations),
+        "p50_us": percentile_nearest_rank(sorted_durations, 50),
+        "p90_us": percentile_nearest_rank(sorted_durations, 90),
+        "p99_us": percentile_nearest_rank(sorted_durations, 99),
+        "p999_us": percentile_nearest_rank(sorted_durations, 99.9),
+        "p9999_us": percentile_nearest_rank(sorted_durations, 99.99),
+    }
+
+
+def threshold_summaries(
+    rows: Sequence[Dict[str, int]],
+    thresholds: Sequence[int],
+) -> List[Dict[str, int]]:
+    total = len(rows)
+    summaries: List[Dict[str, int]] = []
+
+    for threshold_us in thresholds:
+        over_count, burst_count, longest_burst = burst_stats(rows, threshold_us)
+        summaries.append(
+            {
+                "threshold_us": threshold_us,
+                "count": over_count,
+                "ratio_ppm": ratio_ppm(over_count, total),
+                "burst_count": burst_count,
+                "longest_burst": longest_burst,
+            }
+        )
+
+    return summaries
+
+
+def unit_histogram_summary(
+    rows: Sequence[Dict[str, int]],
+    unit_us: int,
+    unit_name: str,
+) -> Dict[str, object]:
+    total = len(rows)
+    durations = [row["duration_us"] for row in rows]
+    late_count = sum(1 for row in rows if row["late"] != 0)
+    stats = tti_histogram_stats(rows, unit_us)
+
+    buckets = {
+        "le_1": stats["le_1tti"],
+        "gt_1_le_2": stats["gt1_le2tti"],
+        "gt_2_le_3": stats["gt2_le3tti"],
+        "gt_3": stats["gt3tti"],
+    }
+
+    return {
+        "unit_name": unit_name,
+        "unit_us": unit_us,
+        "samples": total,
+        "avg_us": round(sum(durations) / total, 3),
+        "max_us": max(durations),
+        "max_unit_equiv": round(max(durations) / unit_us, 3),
+        "late_count": late_count,
+        "late_ratio_ppm": ratio_ppm(late_count, total),
+        "buckets": {
+            name: {
+                "count": count,
+                "ratio_ppm": ratio_ppm(count, total),
+                "ratio_pct": round(ratio_pct(count, total), 6),
+            }
+            for name, count in buckets.items()
+        },
+    }
+
+
+def top_outlier_rows(
+    rows: Sequence[Dict[str, int]],
+    limit: int = 10,
+) -> List[Dict[str, int]]:
+    fields = [
+        "capture_index",
+        "probe_total",
+        "frame",
+        "slot",
+        "duration_us",
+        "late_threshold_us",
+        "late",
+        "context_valid",
+        "dl_pdsch_count",
+        "dl_prb_total",
+        "dl_tbs_total",
+        "dl_mcs_min",
+        "dl_mcs_max",
+        "dl_layers_max",
+        "dl_rv_nonzero_count",
+    ]
+
+    sorted_rows = sorted(rows, key=lambda row: row["duration_us"], reverse=True)
+    return [
+        {field: row[field] for field in fields if field in row}
+        for row in sorted_rows[:limit]
+    ]
+
+
+def build_json_summary(
+    rows: Sequence[Dict[str, int]],
+    thresholds: Sequence[int],
+    duration_unit_us: Optional[int],
+    duration_unit_name: str,
+    csv_path: Path,
+) -> Dict[str, object]:
+    total = len(rows)
+    late_count = sum(1 for row in rows if row["late"] != 0)
+    late_thresholds = sorted(set(row["late_threshold_us"] for row in rows))
+    durations = duration_stats(rows)
+    warnings = validate_order(rows)
+
+    data: Dict[str, object] = {
+        "schema": "rt_deadline_l1tx_summary.v1",
+        "csv_path": str(csv_path),
+        "samples": total,
+        "first_capture_index": rows[0]["capture_index"],
+        "last_capture_index": rows[-1]["capture_index"],
+        "first_probe_total": rows[0]["probe_total"],
+        "last_probe_total": rows[-1]["probe_total"],
+        "first_frame": rows[0]["frame"],
+        "first_slot": rows[0]["slot"],
+        "last_frame": rows[-1]["frame"],
+        "last_slot": rows[-1]["slot"],
+        "duration_us": durations,
+        "min_us": durations["min_us"],
+        "avg_us": durations["avg_us"],
+        "max_us": durations["max_us"],
+        "p50_us": durations["p50_us"],
+        "p90_us": durations["p90_us"],
+        "p99_us": durations["p99_us"],
+        "p999_us": durations["p999_us"],
+        "p9999_us": durations["p9999_us"],
+        "late_threshold_us_values": late_thresholds,
+        "late_count": late_count,
+        "late_ratio_ppm": ratio_ppm(late_count, total),
+        "thresholds": threshold_summaries(rows, thresholds),
+        "top_outliers": top_outlier_rows(rows),
+        "warnings": warnings,
+    }
+
+    if duration_unit_us is not None:
+        histogram = unit_histogram_summary(rows, duration_unit_us, duration_unit_name)
+        data["duration_unit"] = histogram
+        data[f"{duration_unit_name}_us"] = duration_unit_us
+        data[f"{duration_unit_name}_bucket_counts"] = {
+            name: bucket["count"]
+            for name, bucket in histogram["buckets"].items()
+        }
+
+    if any("context_valid" in row for row in rows):
+        context_valid_rows = [row for row in rows if row.get("context_valid", 0) == 1]
+        context_invalid_rows = [row for row in rows if row.get("context_valid", 0) == 0]
+
+        context: Dict[str, object] = {
+            "available": True,
+            "valid_samples": len(context_valid_rows),
+            "invalid_samples": len(context_invalid_rows),
+        }
+
+        if duration_unit_us is not None:
+            if context_valid_rows:
+                context["valid_duration_unit"] = unit_histogram_summary(
+                    context_valid_rows,
+                    duration_unit_us,
+                    duration_unit_name,
+                )
+            if context_invalid_rows:
+                context["invalid_duration_unit"] = unit_histogram_summary(
+                    context_invalid_rows,
+                    duration_unit_us,
+                    duration_unit_name,
+                )
+
+        data["context"] = context
+    else:
+        data["context"] = {"available": False}
+
+    return data
+
+
+def write_json_summary(path: Path, data: Dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
 def summarize(
     rows: Sequence[Dict[str, int]],
     thresholds: Sequence[int],
@@ -353,6 +547,15 @@ def parse_args() -> argparse.Namespace:
             "duration in microseconds, for example --slot-us 500."
         ),
     )
+    parser.add_argument(
+        "--json-summary",
+        type=Path,
+        default=None,
+        help=(
+            "Write a machine-readable JSON summary to the provided path while "
+            "keeping the text summary on stdout."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -380,6 +583,18 @@ def main() -> int:
         rows = load_capture(args.csv_path)
         duration_unit_us, duration_unit_name = resolve_duration_unit(args)
         print(summarize(rows, thresholds, duration_unit_us, duration_unit_name))
+
+        if args.json_summary is not None:
+            write_json_summary(
+                args.json_summary,
+                build_json_summary(
+                    rows,
+                    thresholds,
+                    duration_unit_us,
+                    duration_unit_name,
+                    args.csv_path,
+                ),
+            )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

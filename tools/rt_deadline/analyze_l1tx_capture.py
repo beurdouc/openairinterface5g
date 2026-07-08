@@ -182,28 +182,32 @@ def append_tti_histogram_lines(
     rows: Sequence[Dict[str, int]],
     tti_us: int,
     prefix: str = "",
+    unit_name: str = "tti",
 ) -> None:
     total = len(rows)
     durations = [row["duration_us"] for row in rows]
     late_count = sum(1 for row in rows if row["late"] != 0)
     stats = tti_histogram_stats(rows, tti_us)
 
-    name = f"{prefix}tti" if prefix else "tti"
+    if unit_name not in ("tti", "slot"):
+        raise ValueError(f"unsupported duration unit name: {unit_name}")
+
+    name = f"{prefix}{unit_name}" if prefix else unit_name
 
     lines.append(
         f"{name}_histogram "
-        f"tti_us={tti_us} "
+        f"{unit_name}_us={tti_us} "
         f"samples={total} "
         f"avg_us={sum(durations) / total:.3f} "
         f"max_us={max(durations)} "
-        f"max_tti_equiv={max(durations) / tti_us:.3f} "
+        f"max_{unit_name}_equiv={max(durations) / tti_us:.3f} "
         f"late_count={late_count} "
         f"late_ratio_ppm={ratio_ppm(late_count, total)}"
     )
 
     lines.append(
         f"{name}_bucket "
-        f"bucket=<=1_tti "
+        f"bucket=<=1_{unit_name} "
         f"count={stats['le_1tti']} "
         f"ratio_ppm={ratio_ppm(stats['le_1tti'], total)} "
         f"ratio_pct={ratio_pct(stats['le_1tti'], total):.6f}"
@@ -211,7 +215,7 @@ def append_tti_histogram_lines(
 
     lines.append(
         f"{name}_bucket "
-        f"bucket=>1_<=2_tti "
+        f"bucket=>1_<=2_{unit_name} "
         f"count={stats['gt1_le2tti']} "
         f"ratio_ppm={ratio_ppm(stats['gt1_le2tti'], total)} "
         f"ratio_pct={ratio_pct(stats['gt1_le2tti'], total):.6f}"
@@ -219,7 +223,7 @@ def append_tti_histogram_lines(
 
     lines.append(
         f"{name}_bucket "
-        f"bucket=>2_<=3_tti "
+        f"bucket=>2_<=3_{unit_name} "
         f"count={stats['gt2_le3tti']} "
         f"ratio_ppm={ratio_ppm(stats['gt2_le3tti'], total)} "
         f"ratio_pct={ratio_pct(stats['gt2_le3tti'], total):.6f}"
@@ -227,7 +231,7 @@ def append_tti_histogram_lines(
 
     lines.append(
         f"{name}_bucket "
-        f"bucket=>3_tti "
+        f"bucket=>3_{unit_name} "
         f"count={stats['gt3tti']} "
         f"ratio_ppm={ratio_ppm(stats['gt3tti'], total)} "
         f"ratio_pct={ratio_pct(stats['gt3tti'], total):.6f}"
@@ -238,6 +242,7 @@ def summarize(
     rows: Sequence[Dict[str, int]],
     thresholds: Sequence[int],
     tti_us: Optional[int],
+    duration_unit_name: str = "tti",
 ) -> str:
     durations = [row["duration_us"] for row in rows]
     sorted_durations = sorted(durations)
@@ -281,7 +286,7 @@ def summarize(
         )
 
     if tti_us is not None:
-        append_tti_histogram_lines(lines, rows, tti_us)
+        append_tti_histogram_lines(lines, rows, tti_us, unit_name=duration_unit_name)
 
         if any("context_valid" in row for row in rows):
             context_valid_rows = [row for row in rows if row.get("context_valid", 0) == 1]
@@ -293,6 +298,7 @@ def summarize(
                     context_valid_rows,
                     tti_us,
                     prefix="context_valid_",
+                    unit_name=duration_unit_name,
                 )
 
             if context_invalid_rows:
@@ -301,6 +307,7 @@ def summarize(
                     context_invalid_rows,
                     tti_us,
                     prefix="context_invalid_",
+                    unit_name=duration_unit_name,
                 )
 
     warnings = validate_order(rows)
@@ -327,7 +334,8 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Threshold in microseconds. Can be provided multiple times.",
     )
-    parser.add_argument(
+    duration_unit = parser.add_mutually_exclusive_group()
+    duration_unit.add_argument(
         "--tti-us",
         type=int,
         default=None,
@@ -336,7 +344,30 @@ def parse_args() -> argparse.Namespace:
             "duration in microseconds, for example --tti-us 1000."
         ),
     )
+    duration_unit.add_argument(
+        "--slot-us",
+        type=int,
+        default=None,
+        help=(
+            "Report duration histogram in slot units using the provided slot "
+            "duration in microseconds, for example --slot-us 500."
+        ),
+    )
     return parser.parse_args()
+
+
+def resolve_duration_unit(args: argparse.Namespace) -> Tuple[Optional[int], str]:
+    if args.slot_us is not None:
+        if args.slot_us <= 0:
+            raise ValueError("--slot-us must be > 0")
+        return args.slot_us, "slot"
+
+    if args.tti_us is not None:
+        if args.tti_us <= 0:
+            raise ValueError("--tti-us must be > 0")
+        return args.tti_us, "tti"
+
+    return None, "tti"
 
 
 def main() -> int:
@@ -347,7 +378,8 @@ def main() -> int:
 
     try:
         rows = load_capture(args.csv_path)
-        print(summarize(rows, thresholds, args.tti_us))
+        duration_unit_us, duration_unit_name = resolve_duration_unit(args)
+        print(summarize(rows, thresholds, duration_unit_us, duration_unit_name))
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

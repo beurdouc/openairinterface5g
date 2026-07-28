@@ -75,9 +75,6 @@ typedef struct nrLDPC_TB_decoding_parameters_s{
   int16_t *d;
   bool d_to_be_cleared;
   bool decodeSuccess[NR_LDPC_MAX_NUM_CB];
-  time_stats_t ts_deinterleave;
-  time_stats_t ts_rate_unmatch;
-  time_stats_t ts_seg_prep;
   time_stats_t ts_ldpc_decode;
 } nrLDPC_TB_decoding_parameters_t;
 

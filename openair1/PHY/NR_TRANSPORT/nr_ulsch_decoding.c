@@ -265,9 +265,6 @@ int nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     for (int r = 0; r < TB_parameters->C; r++)
       TB_parameters->decodeSuccess[r] = false;
     TB_parameters->d_to_be_cleared = harq_process->harq_to_be_cleared;
-    reset_meas(&TB_parameters->ts_deinterleave);
-    reset_meas(&TB_parameters->ts_rate_unmatch);
-    reset_meas(&TB_parameters->ts_seg_prep);
     reset_meas(&TB_parameters->ts_ldpc_decode);
     for (int r = 0; r < TB_parameters->C; r++) {
       int Etmp = nr_get_E(TB_parameters->G, TB_parameters->C, TB_parameters->Qm, TB_parameters->nb_layers, r);
@@ -312,9 +309,6 @@ int nr_ulsch_decoding(PHY_VARS_gNB *phy_vars_gNB,
     if (!crcok)
       LOG_D(PHY, "ULSCH %d in error\n", ULSCH_id);
 
-    merge_meas_on_ul(&phy_vars_gNB->ts_deinterleave, &TB_parameters->ts_deinterleave, slot_type);
-    merge_meas_on_ul(&phy_vars_gNB->ts_rate_unmatch, &TB_parameters->ts_rate_unmatch, slot_type);
-    merge_meas_on_ul(&phy_vars_gNB->ts_seg_prep, &TB_parameters->ts_seg_prep, slot_type);
     merge_meas_on_ul(&phy_vars_gNB->ts_ldpc_decode, &TB_parameters->ts_ldpc_decode, slot_type);
 
     harq_process->harq_to_be_cleared = false;

@@ -229,8 +229,6 @@ static void nrL1_stats_init_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru, unsigned in
   init_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats, size);
   init_sorted_list_meas(&gNB->phy_proc_rx, size);
   init_sorted_list_meas(&gNB->ulsch_decoding_stats, size);
-  init_sorted_list_meas(&gNB->ts_deinterleave, size);
-  init_sorted_list_meas(&gNB->ts_rate_unmatch, size);
   init_sorted_list_meas(&gNB->ts_ldpc_decode, size);
   init_sorted_list_meas(&gNB->ul_indication_stats, size);
   init_sorted_list_meas(&gNB->slot_indication_stats, size);
@@ -264,8 +262,6 @@ static void nrL1_stats_free_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru)
   free_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats);
   free_sorted_list_meas(&gNB->phy_proc_rx);
   free_sorted_list_meas(&gNB->ulsch_decoding_stats);
-  free_sorted_list_meas(&gNB->ts_deinterleave);
-  free_sorted_list_meas(&gNB->ts_rate_unmatch);
   free_sorted_list_meas(&gNB->ts_ldpc_decode);
   free_sorted_list_meas(&gNB->ul_indication_stats);
   free_sorted_list_meas(&gNB->slot_indication_stats);
@@ -301,8 +297,6 @@ static void nrL1_stats_reset(PHY_VARS_gNB *gNB, RU_t *ru)
   reset_meas(&gNB->dlsch_pdsch_generation_stats);
   reset_meas(&gNB->phy_proc_rx);
   reset_meas(&gNB->ulsch_decoding_stats);
-  reset_meas(&gNB->ts_deinterleave);
-  reset_meas(&gNB->ts_rate_unmatch);
   reset_meas(&gNB->ts_ldpc_decode);
   reset_meas(&gNB->ul_indication_stats);
   reset_meas(&gNB->slot_indication_stats);
@@ -350,8 +344,6 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
   output += print_meas_log(&gNB->dlsch_pdsch_generation_stats, "PDSCH generation", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->phy_proc_rx, "L1 Rx processing", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->ulsch_decoding_stats, "ULSCH decoding", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->ts_deinterleave, "UL segment deinterleaving", NULL, NULL, output, end - output);
-  output += print_meas_log(&gNB->ts_rate_unmatch, "UL segment rate recovery", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->ts_ldpc_decode, "UL segments decoding", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->ul_indication_stats, "UL Indication", NULL, NULL, output, end - output);
   output += print_meas_log(&gNB->slot_indication_stats, "Slot Indication", NULL, NULL, output, end - output);

@@ -879,8 +879,6 @@ int main(int argc, char *argv[])
     reset_meas(&gNB->ulsch_layer_demapping_stats);
     reset_meas(&gNB->ulsch_unscrambling_stats);
     reset_meas(&gNB->ulsch_decoding_stats);
-    reset_meas(&gNB->ts_deinterleave);
-    reset_meas(&gNB->ts_rate_unmatch);
     reset_meas(&gNB->ts_ldpc_decode);
     reset_meas(&gNB->ulsch_channel_estimation_stats);
     reset_meas(&gNB->pusch_channel_estimation_antenna_processing_stats);
@@ -1443,11 +1441,6 @@ int main(int argc, char *argv[])
       gNB->ulsch_unscrambling_stats.trials = gNB->rx_pusch_symbol_processing_stats.trials;
       printStatIndent3(&gNB->ulsch_unscrambling_stats, "RX PUSCH unscrambling");
       printStatIndent(&gNB->ulsch_decoding_stats, "ULSCH total decoding time");
-      gNB->ts_deinterleave.trials = n_trials;
-      printStatIndent2(&gNB->ts_deinterleave, "ULSCH segment deinterleaving time");
-      gNB->ts_rate_unmatch.trials = n_trials;
-      printStatIndent2(&gNB->ts_rate_unmatch, "ULSCH segment rate matching time");
-      gNB->ts_ldpc_decode.trials = n_trials;
       printStatIndent2(&gNB->ts_ldpc_decode, "ULSCH segments decoding time");
       printStatIndent(&channel_stats, "Multipath Channel (CPU)");
       printStatIndent(&noise_stats, "Add Noise (CPU)");

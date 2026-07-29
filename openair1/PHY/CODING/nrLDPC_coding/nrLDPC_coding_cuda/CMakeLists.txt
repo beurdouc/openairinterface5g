@@ -34,7 +34,7 @@ set_target_properties(ldpc_cuda PROPERTIES CUDA_ARCHITECTURES "80;87;90")
 find_package(CUDA REQUIRED)
 target_include_directories(ldpc_cuda PRIVATE ${CUDA_INCLUDE_DIRS})
 
-target_link_libraries(ldpc_cuda ldpc_gen_HEADERS log_headers)
+target_link_libraries(ldpc_cuda log_headers)
 set_target_properties(ldpc_cuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(ldpc_cuda PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 

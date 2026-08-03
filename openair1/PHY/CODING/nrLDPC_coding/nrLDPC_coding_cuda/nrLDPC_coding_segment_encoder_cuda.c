@@ -328,8 +328,10 @@ static void unpack_output(uint32_t *f,
 	*(output_p + (bit_index>>5))     |= (tmp<<(bit_index&31));
 	*(output_p + (bit_index>>5)+1)   |= (tmp>>(32-(bit_index&31)));
 	*/
-        uint64_t tmp = (uint64_t)vaddvq_u32(cshift);
-	*(uint64_t*)(output_p + (bit_index>>5))     |= (tmp<<(bit_index&31));
+	uint64_t tmp;
+	memcpy(&tmp, output_p + (bit_index>>5), sizeof(tmp));
+        tmp |= (uint64_t)vaddvq_u32(cshift) << (bit_index & 31);
+        memcpy(output_p + (bit_index>>5), &tmp, sizeof(tmp));
 	bit_index+=32;
       }
       uint32_t Emod32=E&31;

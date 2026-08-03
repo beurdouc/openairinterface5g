@@ -521,12 +521,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to rt_deadline_l1tx_samples.csv",
     )
     parser.add_argument(
+        "--deadline-us",
         "--threshold",
         dest="thresholds",
         type=int,
         action="append",
         default=None,
-        help="Threshold in microseconds. Can be provided multiple times.",
+        help="Deadline in microseconds. Can be provided multiple times.",
     )
     duration_unit = parser.add_mutually_exclusive_group()
     duration_unit.add_argument(

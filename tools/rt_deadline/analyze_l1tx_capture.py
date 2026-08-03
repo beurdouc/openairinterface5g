@@ -114,11 +114,13 @@ def load_capture(path: Path) -> List[Dict[str, int]]:
 def validate_order(rows: Sequence[Dict[str, int]]) -> List[str]:
     warnings: List[str] = []
 
-    for expected, row in enumerate(rows):
+    first_capture_index = rows[0]["capture_index"]
+    for offset, row in enumerate(rows):
+        expected = first_capture_index + offset
         if row["capture_index"] != expected:
             warnings.append(
-                f"capture_index discontinuity at sample {expected}: "
-                f"got {row['capture_index']}"
+                f"capture_index discontinuity at sample {offset}: "
+                f"expected {expected}, got {row['capture_index']}"
             )
             break
 
@@ -529,6 +531,19 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Deadline in microseconds. Can be provided multiple times.",
     )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=None,
+        help="Keep samples whose capture_index is greater than or equal to this value.",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=None,
+        help="Keep samples whose capture_index is less than or equal to this value.",
+    )
+
     duration_unit = parser.add_mutually_exclusive_group()
     duration_unit.add_argument(
         "--tti-us",
@@ -560,6 +575,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def filter_rows_by_capture_index(
+    rows: List[Dict[str, int]],
+    start_index: Optional[int],
+    end_index: Optional[int],
+) -> List[Dict[str, int]]:
+    if start_index is not None and start_index < 0:
+        raise ValueError("--start-index must be >= 0")
+    if end_index is not None and end_index < 0:
+        raise ValueError("--end-index must be >= 0")
+    if (
+        start_index is not None
+        and end_index is not None
+        and start_index > end_index
+    ):
+        raise ValueError("--start-index must be <= --end-index")
+
+    filtered = [
+        row
+        for row in rows
+        if (start_index is None or row["capture_index"] >= start_index)
+        and (end_index is None or row["capture_index"] <= end_index)
+    ]
+
+    if not filtered:
+        raise ValueError("selected capture-index window contains no samples")
+
+    return filtered
+
+
 def resolve_duration_unit(args: argparse.Namespace) -> Tuple[Optional[int], str]:
     if args.slot_us is not None:
         if args.slot_us <= 0:
@@ -582,6 +626,11 @@ def main() -> int:
 
     try:
         rows = load_capture(args.csv_path)
+        rows = filter_rows_by_capture_index(
+            rows,
+            args.start_index,
+            args.end_index,
+        )
         duration_unit_us, duration_unit_name = resolve_duration_unit(args)
         print(summarize(rows, thresholds, duration_unit_us, duration_unit_name))
 

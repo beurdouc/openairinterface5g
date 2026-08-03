@@ -555,6 +555,12 @@ def parse_args() -> argparse.Namespace:
         default=Path("analysis_outputs"),
         help="Directory used for generated plots.",
     )
+    parser.add_argument(
+        "--ecdf-x-max-us",
+        type=int,
+        default=None,
+        help="Optional upper bound for the ECDF x-axis in microseconds.",
+    )
 
     duration_unit = parser.add_mutually_exclusive_group()
     duration_unit.add_argument(
@@ -620,6 +626,7 @@ def write_ecdf_plot(
     rows: Sequence[Dict[str, int]],
     thresholds: Sequence[int],
     output_dir: Path,
+    x_max_us: Optional[int],
 ) -> Path:
     try:
         import matplotlib
@@ -630,6 +637,9 @@ def write_ecdf_plot(
             "matplotlib is required when using --plot-ecdf"
         ) from exc
 
+    if x_max_us is not None and x_max_us <= 0:
+        raise ValueError("--ecdf-x-max-us must be > 0")
+
     durations = sorted(row["duration_us"] for row in rows)
     cumulative = [
         (index + 1) / len(durations)
@@ -637,12 +647,23 @@ def write_ecdf_plot(
     ]
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "l1tx_duration_ecdf.png"
+
+    output_name = "l1tx_duration_ecdf.png"
+    if x_max_us is not None:
+        output_name = f"l1tx_duration_ecdf_xmax_{x_max_us}us.png"
+
+    output_path = output_dir / output_name
 
     figure, axis = plt.subplots()
     axis.step(durations, cumulative, where="post", label="L1_TX_JOB_DL")
 
-    for threshold_us in thresholds:
+    visible_thresholds = [
+        threshold_us
+        for threshold_us in thresholds
+        if x_max_us is None or threshold_us <= x_max_us
+    ]
+
+    for threshold_us in visible_thresholds:
         axis.axvline(
             threshold_us,
             linestyle="--",
@@ -653,6 +674,10 @@ def write_ecdf_plot(
     axis.set_xlabel("Processing duration (us)")
     axis.set_ylabel("Empirical cumulative probability")
     axis.set_ylim(0.0, 1.0)
+
+    if x_max_us is not None:
+        axis.set_xlim(right=x_max_us)
+
     axis.legend()
     figure.tight_layout()
     figure.savefig(output_path, dpi=160)
@@ -696,6 +721,7 @@ def main() -> int:
                 rows,
                 thresholds,
                 args.output_dir,
+                args.ecdf_x_max_us,
             )
             print(f"ecdf_plot={output_path}")
 

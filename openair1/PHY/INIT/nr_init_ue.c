@@ -355,12 +355,20 @@ void free_nr_ue_ul_harq(NR_UL_UE_HARQ_t harq_list[NR_MAX_HARQ_PROCESSES], int nu
 
   for (int i = 0; i < number_of_processes; i++) {
     free_and_zero(harq_list[i].payload_AB);
+#ifdef LDPC_CUDA
+    {
+      // nr_init_ul_harq_processes() makes single allocation(!)
+      cudaFreeHost(harq_list[i].c[0]);
+      cudaFreeHost(harq_list[i].d[0]);
+    }
+#else
     for (int r = 0; r < a_segments; r++) {
       free_and_zero(harq_list[i].c[r]);
       free_and_zero(harq_list[i].d[r]);
     }
     free_and_zero(harq_list[i].c);
     free_and_zero(harq_list[i].d);
+#endif
     free_and_zero(harq_list[i].e);
     free_and_zero(harq_list[i].f);
   }

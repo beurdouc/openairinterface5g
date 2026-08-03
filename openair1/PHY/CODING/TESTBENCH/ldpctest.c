@@ -350,7 +350,9 @@ one_measurement_t test_ldpc(short max_iterations,
 
         // Uncoded BER
         uint8_t channel_output_uncoded = channel_output_fixed[(j * 384 * 68) + i] < 0 ? 1 /* QPSK demod */ : 0;
-        if (channel_output_uncoded != ((channel_input_optim[i - 2 * Zc] >> j) & 0x1))
+	uint64_t r;
+	memcpy(&r, &channel_input_optim[i - 2 * Zc], sizeof(r));
+        if (channel_output_uncoded != ((r >> j) & 0x1))
           ret.errors_bit_uncoded++;
       }
 

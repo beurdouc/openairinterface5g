@@ -1174,13 +1174,7 @@ void pdsch_processing(PHY_VARS_NR_UE *ue, const UE_nr_rxtx_proc_t *proc, nr_phy_
   }
 
   const int actor_idx_llr = proc->nr_slot_rx % ue->pdsch_num_actors;
-  int16_t **llr;
-#ifdef LDPC_CUDA
-  // TODO CHECK THIS: should be per actor?
-  llr = ue->llr_dev[nr_slot_rx % 10];
-#else
-  llr = ue->pdsch_scratch[actor_idx_llr].llr;
-#endif
+  int16_t **llr = ue->pdsch_scratch[actor_idx_llr].llr;
   fapi_nr_dl_config_dlsch_pdu_rel15_t *dlsch_config = &phy_data->dlsch_config;
   for (int c = 0; c < phy_data->n_dlsch_codewords; c++) {
     NR_UE_DLSCH_t *dlsch = &phy_data->dlsch[c];

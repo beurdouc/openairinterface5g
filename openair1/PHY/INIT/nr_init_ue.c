@@ -264,16 +264,6 @@ int init_nr_ue_signal(PHY_VARS_NR_UE *ue, int nb_connected_gNB)
   if (IS_SA_MODE(get_softmodem_params()))
     ue->received_config_request = false;
 
-#ifdef LDPC_CUDA
-  for (int j = 0; j < 10; j++) {
-    for (int i = 0; i < 2; i++) {
-      cudaError_t err = cudaHostAlloc((void **)&ue->llr[j][i], (66 * 3 * 8448) * sizeof(int16_t), cudaHostAllocMapped);
-      AssertFatal(err == cudaSuccess, "CUDA Error (pusch_llr): %s\n", cudaGetErrorString(err));
-      err = cudaHostGetDevicePointer((void **)&ue->llr_dev[j][i], ue->llr[j][i], 0);
-      AssertFatal(err == cudaSuccess, "CUDA Error (pusch_llr_dev): %s\n", cudaGetErrorString(err));
-    }
-  }
-#endif
   return 0;
 }
 
@@ -328,13 +318,6 @@ void term_nr_ue_signal(PHY_VARS_NR_UE *ue)
 
     free_and_zero(ue->prs_vars[idx]);
   }
-
-#ifdef LDPC_CUDA
-  for (int j = 0; j < 10; j++) {
-    cudaFreeHost(ue->llr[j][0]);
-    cudaFreeHost(ue->llr[j][1]);
-  }
-#endif
 
   sl_ue_free(ue);
 }
@@ -392,8 +375,14 @@ void free_nr_ue_pdsch_buffers(pdsch_scratch_t *buffers, int num_actors)
     free_and_zero(buffers[i].dl_ch_magr);
     free_and_zero(buffers[i].rho_dl);
     free_and_zero(buffers[i].pdsch_dl_ch_estimates);
-    for (int c = 0; c < 2; c++)
+    for (int c = 0; c < 2; c++) {
+#ifdef LDPC_CUDA
+      cudaFreeHost(buffers[i].llr[c]);
+      cudaFreeHost(buffers[i].llr_dev[c]);
+#else
       free_and_zero(buffers[i].llr[c]);
+#endif
+    }
   }
 }
 
@@ -509,8 +498,16 @@ void nr_init_pdsch_buffers(pdsch_scratch_t *buffers, int num_actors, const NR_DL
     buffers[i].dl_ch_magr            = malloc16_clear(comp_elems   * sizeof(c16_t));
     buffers[i].rho_dl                = malloc16_clear(rho_elems    * sizeof(c16_t));
     buffers[i].pdsch_dl_ch_estimates = malloc16_clear(ch_est_elems * sizeof(int32_t));
-    for (int c = 0; c < 2; c++)
+    for (int c = 0; c < 2; c++) {
+#ifdef LDPC_CUDA
+      cudaError_t err = cudaHostAlloc((void **)&buffers[i].llr[c], (66 * 3 * 8448) * sizeof(int16_t), cudaHostAllocMapped);
+      AssertFatal(err == cudaSuccess, "CUDA Error (pusch_llr): %s\n", cudaGetErrorString(err));
+      err = cudaHostGetDevicePointer((void **)&buffers[i].llr_dev[c], buffers[i].llr[c], 0);
+      AssertFatal(err == cudaSuccess, "CUDA Error (pusch_llr_dev): %s\n", cudaGetErrorString(err));
+#else
       buffers[i].llr[c]              = malloc16(llr_buf_max * sizeof(int16_t));
+#endif
+    }
   }
 }
 

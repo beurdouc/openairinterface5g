@@ -452,18 +452,15 @@ typedef struct PHY_VARS_NR_UE_s {
     c16_t   *rho_dl;                // [NR_SYMBOLS_PER_SLOT][NR_MAX_NB_LAYERS*NR_MAX_NB_LAYERS][pdsch_buf_size_max]
     int32_t *pdsch_dl_ch_estimates; // [nb_antennas_rx*NR_MAX_NB_LAYERS][pdsch_est_size]
     int16_t *llr[2];               // [2 codewords][llr_buf_max]
+#ifdef LDPC_CUDA
+    // gpu mapped version (cudaDeviceGetHostPointer), typically the same for Jetson/GH/GB
+    int16_t *llr_dev[10][2];
+#endif
     uint32_t pdsch_buf_size_max;
     uint32_t pdsch_est_size;
     uint32_t llr_buf_max;
   } *pdsch_scratch;
   int pdsch_num_actors;
-
-#ifdef LDPC_CUDA
-  // page locked memory (cudaHostAlloc) for llr input to LDPC decoder for GPU offload
-  int16_t *llr[10][2];
-  // gpu mapped version (cudaDeviceGetHostPointer), typically the same for Jetson/GH/GB
-  int16_t *llr_dev[10][2];
-#endif
 } PHY_VARS_NR_UE;
 typedef struct pdsch_scratch_s pdsch_scratch_t;
 

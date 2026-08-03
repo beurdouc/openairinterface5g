@@ -544,6 +544,18 @@ def parse_args() -> argparse.Namespace:
         help="Keep samples whose capture_index is less than or equal to this value.",
     )
 
+    parser.add_argument(
+        "--plot-ecdf",
+        action="store_true",
+        help="Write an ECDF plot of duration_us.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("analysis_outputs"),
+        help="Directory used for generated plots.",
+    )
+
     duration_unit = parser.add_mutually_exclusive_group()
     duration_unit.add_argument(
         "--tti-us",
@@ -604,6 +616,51 @@ def filter_rows_by_capture_index(
     return filtered
 
 
+def write_ecdf_plot(
+    rows: Sequence[Dict[str, int]],
+    thresholds: Sequence[int],
+    output_dir: Path,
+) -> Path:
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise RuntimeError(
+            "matplotlib is required when using --plot-ecdf"
+        ) from exc
+
+    durations = sorted(row["duration_us"] for row in rows)
+    cumulative = [
+        (index + 1) / len(durations)
+        for index in range(len(durations))
+    ]
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "l1tx_duration_ecdf.png"
+
+    figure, axis = plt.subplots()
+    axis.step(durations, cumulative, where="post", label="L1_TX_JOB_DL")
+
+    for threshold_us in thresholds:
+        axis.axvline(
+            threshold_us,
+            linestyle="--",
+            linewidth=1,
+            label=f"{threshold_us} us",
+        )
+
+    axis.set_xlabel("Processing duration (us)")
+    axis.set_ylabel("Empirical cumulative probability")
+    axis.set_ylim(0.0, 1.0)
+    axis.legend()
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=160)
+    plt.close(figure)
+
+    return output_path
+
+
 def resolve_duration_unit(args: argparse.Namespace) -> Tuple[Optional[int], str]:
     if args.slot_us is not None:
         if args.slot_us <= 0:
@@ -633,6 +690,14 @@ def main() -> int:
         )
         duration_unit_us, duration_unit_name = resolve_duration_unit(args)
         print(summarize(rows, thresholds, duration_unit_us, duration_unit_name))
+
+        if args.plot_ecdf:
+            output_path = write_ecdf_plot(
+                rows,
+                thresholds,
+                args.output_dir,
+            )
+            print(f"ecdf_plot={output_path}")
 
         if args.json_summary is not None:
             write_json_summary(

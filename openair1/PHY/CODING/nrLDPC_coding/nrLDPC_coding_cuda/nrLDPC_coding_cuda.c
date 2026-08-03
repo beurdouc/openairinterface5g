@@ -69,19 +69,21 @@ int nrLDPC_coding_encoder(nrLDPC_slot_encoding_parameters_t *slot_params)
     // timing?
     .TBs = tbCPU,
   };
-
+  int offset[32];
   for (int dlsch_id = 0; dlsch_id < slot_params->nb_TBs; dlsch_id++) {
     nrLDPC_TB_encoding_parameters_t *tbp = &slot_params->TBs[dlsch_id];
     if (tbp->BG == 1 && tbp->C > 8 && tbp->Z == 384) {
       nrLDPC_coding_encoder32(slot_params, tbp);
     } else {
       // this is not handled by CUDA, handle with CPU
+      offset[cpu.nb_TBs] = dlsch_id;
       cpu.TBs[cpu.nb_TBs++] = *tbp;
     }
   }
   if (cpu.nb_TBs > 0) {
     ldpc_cpu.nrLDPC_coding_encoder(&cpu);
-    slot_params->TBs[0] = cpu.TBs[0];
+    for (int i = 0; i < cpu.nb_TBs; ++i)
+      slot_params->TBs[offset[i]] = cpu.TBs[0];
   }
   return 0;
 }
@@ -97,18 +99,21 @@ int32_t nrLDPC_coding_decoder(nrLDPC_slot_decoding_parameters_t *slot_params)
     .threadPool = slot_params->threadPool,
     .TBs = tbCPU,
   };
+  int offset[32];
   for (int pusch_id = 0; pusch_id < slot_params->nb_TBs; pusch_id++) {
     nrLDPC_TB_decoding_parameters_t *tbp = &slot_params->TBs[pusch_id];
     if (tbp->Z >= 128 && tbp->BG == 1) {
       nr_process_decode_segment_cuda(tbp);
     } else {
       // this is not handled by CUDA, handle with CPU
+      offset[cpu.nb_TBs] = pusch_id;
       cpu.TBs[cpu.nb_TBs++] = *tbp;
     }
   }
   if (cpu.nb_TBs > 0) {
     ldpc_cpu.nrLDPC_coding_decoder(&cpu);
-    slot_params->TBs[0] = cpu.TBs[0];
+    for (int i = 0; i < cpu.nb_TBs; ++i)
+      slot_params->TBs[offset[i]] = cpu.TBs[0];
   }
   return 0;
 }

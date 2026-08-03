@@ -550,6 +550,11 @@ def parse_args() -> argparse.Namespace:
         help="Write an ECDF plot of duration_us.",
     )
     parser.add_argument(
+        "--plot-ccdf",
+        action="store_true",
+        help="Write a logarithmic CCDF plot of duration_us.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("analysis_outputs"),
@@ -560,6 +565,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Optional upper bound for the ECDF x-axis in microseconds.",
+    )
+    parser.add_argument(
+        "--ccdf-x-max-us",
+        type=int,
+        default=None,
+        help="Optional upper bound for the CCDF x-axis in microseconds.",
     )
 
     duration_unit = parser.add_mutually_exclusive_group()
@@ -686,6 +697,81 @@ def write_ecdf_plot(
     return output_path
 
 
+def write_ccdf_plot(
+    rows: Sequence[Dict[str, int]],
+    thresholds: Sequence[int],
+    output_dir: Path,
+    x_max_us: Optional[int],
+) -> Path:
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise RuntimeError(
+            "matplotlib is required when using --plot-ccdf"
+        ) from exc
+
+    if x_max_us is not None and x_max_us <= 0:
+        raise ValueError("--ccdf-x-max-us must be > 0")
+
+    durations = sorted(row["duration_us"] for row in rows)
+    sample_count = len(durations)
+
+    survival = [
+        (sample_count - index) / sample_count
+        for index in range(sample_count)
+    ]
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    output_name = "l1tx_duration_ccdf.png"
+    if x_max_us is not None:
+        output_name = f"l1tx_duration_ccdf_xmax_{x_max_us}us.png"
+
+    output_path = output_dir / output_name
+
+    figure, axis = plt.subplots()
+    axis.step(
+        durations,
+        survival,
+        where="post",
+        label="L1_TX_JOB_DL",
+    )
+
+    visible_thresholds = [
+        threshold_us
+        for threshold_us in thresholds
+        if x_max_us is None or threshold_us <= x_max_us
+    ]
+
+    for threshold_us in visible_thresholds:
+        axis.axvline(
+            threshold_us,
+            linestyle="--",
+            linewidth=1,
+            label=f"{threshold_us} us",
+        )
+
+    axis.set_xlabel("Processing duration (us)")
+    axis.set_ylabel("Survival probability P(duration >= x)")
+    axis.set_yscale("log")
+    axis.set_ylim(
+        bottom=max(1.0 / (2.0 * sample_count), 1e-7),
+        top=1.0,
+    )
+
+    if x_max_us is not None:
+        axis.set_xlim(right=x_max_us)
+
+    axis.legend()
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=160)
+    plt.close(figure)
+
+    return output_path
+
+
 def resolve_duration_unit(args: argparse.Namespace) -> Tuple[Optional[int], str]:
     if args.slot_us is not None:
         if args.slot_us <= 0:
@@ -724,6 +810,15 @@ def main() -> int:
                 args.ecdf_x_max_us,
             )
             print(f"ecdf_plot={output_path}")
+
+        if args.plot_ccdf:
+            output_path = write_ccdf_plot(
+                rows,
+                thresholds,
+                args.output_dir,
+                args.ccdf_x_max_us,
+            )
+            print(f"ccdf_plot={output_path}")
 
         if args.json_summary is not None:
             write_json_summary(

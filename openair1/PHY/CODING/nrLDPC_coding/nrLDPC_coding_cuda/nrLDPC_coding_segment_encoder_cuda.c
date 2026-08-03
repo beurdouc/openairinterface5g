@@ -807,10 +807,11 @@ static void ldpcnblocks(nrLDPC_TB_encoding_parameters_t *nrLDPC_TB_encoding_para
 
   uint32_t Tbslbrm = nrLDPC_TB_encoding_parameters->tbslbrm;
 
-  uint32_t e[E*(r_shift+1)];
-  uint32_t e2[E2*(n_seg2-r_shift)];
-  uint32_t f[E*(r_shift+1)] __attribute__ ((aligned (64)));
-  uint32_t f2[E2*(n_seg2-r_shift)] __attribute__ ((aligned (64)));
+  uint32_t e[E * (r_shift+1)];
+  size_t siz = max(1, n_seg2 - r_shift);
+  uint32_t e2[E2 * siz];
+  uint32_t f[E * (r_shift+1)] __attribute__ ((aligned (64)));
+  uint32_t f2[E2 * siz] __attribute__ ((aligned (64)));
 
   // Interleaver outputs are stored in the output arrays
   uint8_t *output = nrLDPC_TB_encoding_parameters->output;

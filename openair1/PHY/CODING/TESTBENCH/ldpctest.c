@@ -643,7 +643,6 @@ int main(int argc, char *argv[])
     dec_iter[i].snr = SNR;
     dec_iter[i].ber = (float)res.errors_bit / (float)n_trials / (float)Kprime / (double)n_segments;
     dec_iter[i].bler = (float)decoded_errors[i] / (float)n_trials;
-
     printf("SNR %f, BLER %f (%u/%d)\n", SNR, dec_iter[i].bler, decoded_errors[i], n_trials);
     printf("SNR %f, BER %f (%u/%d)\n", SNR, dec_iter[i].ber, decoded_errors[i], n_trials);
     printf("SNR %f, Uncoded BER %f (%u/%d)\n",
@@ -667,10 +666,8 @@ int main(int argc, char *argv[])
 
     time_stats_t *t_decoder = &res.time_decoder;
     if (use32bit)
-      printf("Decoding time mean (per segment in average)");
-    else
-      printf("Decoding time mean (per segment)");
-    printf(": %15.3f us\n", (double)t_decoder->diff / t_decoder->trials / 1000.0 / cpu_freq);
+      printf("use32bit: decoding time mean per segment in average!\n");
+    printf("Decoding time mean: %15.3f us\n", (double)t_decoder->diff / t_decoder->trials / 1000.0 / cpu_freq);
     printf("Decoding time std: %15.3f us\n",
            sqrt((double)t_decoder->diff_square / t_decoder->trials / pow(1000, 2) / pow(cpu_freq, 2)
                 - pow((double)t_decoder->diff / t_decoder->trials / 1000.0 / cpu_freq, 2)));

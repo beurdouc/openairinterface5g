@@ -8,7 +8,8 @@
 #
 # Optional context columns, when present:
 #   context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,
-#   dl_mcs_max,dl_layers_max,dl_rv_nonzero_count
+#   dl_mcs_max,dl_mcs_table_min,dl_mcs_table_max,dl_layers_max,
+#   dl_rv_nonzero_count
 
 import argparse
 import csv
@@ -37,6 +38,8 @@ OPTIONAL_INT_COLUMNS = {
     "dl_tbs_total",
     "dl_mcs_min",
     "dl_mcs_max",
+    "dl_mcs_table_min",
+    "dl_mcs_table_max",
     "dl_layers_max",
     "dl_rv_nonzero_count",
 }
@@ -334,6 +337,8 @@ def top_outlier_rows(
         "dl_tbs_total",
         "dl_mcs_min",
         "dl_mcs_max",
+        "dl_mcs_table_min",
+        "dl_mcs_table_max",
         "dl_layers_max",
         "dl_rv_nonzero_count",
     ]

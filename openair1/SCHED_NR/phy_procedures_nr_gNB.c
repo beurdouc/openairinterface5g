@@ -290,6 +290,7 @@ void phy_procedures_gNB_TX(PHY_VARS_gNB *gNB,
           const int codewords = pdsch->NrOfCodewords < 2 ? pdsch->NrOfCodewords : 2;
           for (int cw = 0; cw < codewords; cw++) {
             const int mcs = pdsch->mcsIndex[cw];
+            const int mcs_table = pdsch->mcsTable[cw];
 
             rt_l1tx_ctx.dl_tbs_total += pdsch->TBSize[cw];
 
@@ -297,6 +298,11 @@ void phy_procedures_gNB_TX(PHY_VARS_gNB *gNB,
               rt_l1tx_ctx.dl_mcs_min = mcs;
             if (mcs > rt_l1tx_ctx.dl_mcs_max)
               rt_l1tx_ctx.dl_mcs_max = mcs;
+
+            if (rt_l1tx_ctx.dl_mcs_table_min < 0 || mcs_table < rt_l1tx_ctx.dl_mcs_table_min)
+              rt_l1tx_ctx.dl_mcs_table_min = mcs_table;
+            if (mcs_table > rt_l1tx_ctx.dl_mcs_table_max)
+              rt_l1tx_ctx.dl_mcs_table_max = mcs_table;
 
             if (pdsch->rvIndex[cw] != 0)
               rt_l1tx_ctx.dl_rv_nonzero_count++;

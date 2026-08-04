@@ -6,7 +6,10 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-from analyze_l1tx_capture import load_capture
+from analyze_l1tx_capture import (
+    filter_rows_by_capture_index,
+    load_capture,
+)
 
 
 def parse_run(value: str) -> Tuple[str, Path]:
@@ -36,6 +39,24 @@ def parse_args() -> argparse.Namespace:
         action="append",
         required=True,
         help="Run in the form NAME=/path/to/capture.csv. Repeat for each run.",
+    )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=None,
+        help=(
+            "Keep samples whose capture_index is greater than or equal "
+            "to this value."
+        ),
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=None,
+        help=(
+            "Keep samples whose capture_index is less than or equal "
+            "to this value."
+        ),
     )
     parser.add_argument(
         "--deadline-us",
@@ -116,6 +137,11 @@ def main() -> int:
 
         for name, csv_path in args.run:
             rows = load_capture(csv_path)
+            rows = filter_rows_by_capture_index(
+                rows,
+                args.start_index,
+                args.end_index,
+            )
             durations = sorted(row["duration_us"] for row in rows)
             max_sample_count = max(max_sample_count, len(durations))
 
@@ -170,6 +196,19 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         figure.savefig(args.output, dpi=160)
         plt.close(figure)
+
+        if args.start_index is not None or args.end_index is not None:
+            start_text = (
+                str(args.start_index)
+                if args.start_index is not None
+                else "first"
+            )
+            end_text = (
+                str(args.end_index)
+                if args.end_index is not None
+                else "last"
+            )
+            print(f"capture_index_window={start_text}:{end_text}")
 
         plot_kind = "ccdf" if args.plot_ccdf else "ecdf"
         print(f"{plot_kind}_comparison_plot={args.output}")

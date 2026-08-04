@@ -97,6 +97,8 @@ void nr_process_decode_segment_cuda(nrLDPC_TB_decoding_parameters_t *segs)
   LOG_D(NR_PHY,"locking decoder (llr %p)\n",segs->llr);
   pthread_mutex_lock(&decoder_mutex);
 
+  *segs->processedSegments = 0;
+
   // for PCIe GPU copy llrs to device memory
   if (!pageable&&!integrated) {
 	                   LOG_I(NR_PHY,"cudaMemcpyAsynch llr->harq_f_dev\n");

@@ -24,6 +24,14 @@ add_library(ldpc_cuda MODULE
             # .cu files
             nrLDPC_decoder_BG1_cuda.cu
             ldpc_BG1_Zc384_32bit.cu
+            ldpc_BG1_Zc352_32bit.cu
+            ldpc_BG1_Zc320_32bit.cu
+            ldpc_BG1_Zc288_32bit.cu
+            ldpc_BG1_Zc256_32bit.cu
+            ldpc_BG1_Zc224_32bit.cu
+            ldpc_BG1_Zc208_32bit.cu
+            ldpc_BG1_Zc192_32bit.cu
+            ldpc_BG1_Zc176_32bit.cu
             ldpc_input.cu
             ldpc_deinterleave.cu
             ldpc_rate_matching.cu

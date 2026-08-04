@@ -22,6 +22,14 @@
 
 
 
+int ldpc_BG1_Zc176_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc192_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc208_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc224_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc256_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc288_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc320_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
+int ldpc_BG1_Zc352_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
 int ldpc_BG1_Zc384_cuda32(uint32_t **c,uint32_t **d,int n_inputs, cudaStream_t *stream,int sidx);
 
 
@@ -31,15 +39,31 @@ void encode_parity_check_part_cuda(uint32_t **c, uint32_t **d, short BG,short Zc
   if (BG == 1) {
     switch (Zc) {
       case 176:
+	ldpc_BG1_Zc176_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 192:
+	ldpc_BG1_Zc192_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 208:
+	ldpc_BG1_Zc208_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 224:
+	ldpc_BG1_Zc224_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 240:
+	ldpc_BG1_Zc240_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 256:
+	ldpc_BG1_Zc256_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 288:
+	ldpc_BG1_Zc288_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 320:
+	ldpc_BG1_Zc320_cuda32(c, d, n_inputs, stream,sidx);
+	break;
       case 352:
-	AssertFatal(1==0,"BG %d Zc %d not supported yet for CUDA\n",BG, Zc);
+	ldpc_BG1_Zc352_cuda32(c, d, n_inputs, stream,sidx);
         break;
       case 384:
 	ldpc_BG1_Zc384_cuda32(c, d, n_inputs, stream,sidx);

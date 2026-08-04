@@ -161,7 +161,7 @@ uint32_t **LDPCencoder32(uint8_t **input, encoder_implemparams_t *impp)
   int encoder_stream=0;
 
   AssertFatal(BG==1,"BG %d is not supported for CUDA version\n",BG);
-  AssertFatal(Zc==384,"Zc %d is not supported for CUDA version \n", Zc);
+  AssertFatal(Zc==384 || Zc==176,"Zc %d is not supported for CUDA version \n", Zc);
  
   if(impp->tinput != NULL) start_meas(impp->tinput);
 

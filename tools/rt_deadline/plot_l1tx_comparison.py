@@ -51,12 +51,42 @@ def parse_args() -> argparse.Namespace:
         help="Optional upper bound of the x-axis in microseconds.",
     )
     parser.add_argument(
+        "--plot-ccdf",
+        action="store_true",
+        help="Plot a logarithmic CCDF instead of the default ECDF.",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         required=True,
         help="Output PNG path.",
     )
     return parser.parse_args()
+
+
+def build_ccdf(
+    durations: List[int],
+) -> Tuple[List[int], List[float]]:
+    sample_count = len(durations)
+    ccdf_durations: List[int] = []
+    exceedance: List[float] = []
+
+    for index, duration_us in enumerate(durations):
+        is_last_occurrence = (
+            index + 1 == sample_count
+            or durations[index + 1] != duration_us
+        )
+        if not is_last_occurrence:
+            continue
+
+        exceed_count = sample_count - index - 1
+        if exceed_count == 0:
+            continue
+
+        ccdf_durations.append(duration_us)
+        exceedance.append(exceed_count / sample_count)
+
+    return ccdf_durations, exceedance
 
 
 def main() -> int:
@@ -82,18 +112,29 @@ def main() -> int:
         import matplotlib.pyplot as plt
 
         figure, axis = plt.subplots()
+        max_sample_count = 0
 
         for name, csv_path in args.run:
             rows = load_capture(csv_path)
             durations = sorted(row["duration_us"] for row in rows)
-            cumulative = [
-                (index + 1) / len(durations)
-                for index in range(len(durations))
-            ]
+            max_sample_count = max(max_sample_count, len(durations))
+
+            if args.plot_ccdf:
+                x_values, y_values = build_ccdf(durations)
+                if not x_values:
+                    raise ValueError(
+                        f"{csv_path}: no positive CCDF values could be generated"
+                    )
+            else:
+                x_values = durations
+                y_values = [
+                    (index + 1) / len(durations)
+                    for index in range(len(durations))
+                ]
 
             axis.step(
-                durations,
-                cumulative,
+                x_values,
+                y_values,
                 where="post",
                 label=f"{name} (n={len(durations)})",
             )
@@ -108,8 +149,17 @@ def main() -> int:
                 )
 
         axis.set_xlabel("L1 TX processing duration (us)")
-        axis.set_ylabel("Empirical cumulative probability")
-        axis.set_ylim(0.0, 1.0)
+
+        if args.plot_ccdf:
+            axis.set_ylabel("Exceedance probability P(duration > x)")
+            axis.set_yscale("log")
+            axis.set_ylim(
+                bottom=max(1.0 / (2.0 * max_sample_count), 1e-7),
+                top=1.0,
+            )
+        else:
+            axis.set_ylabel("Empirical cumulative probability")
+            axis.set_ylim(0.0, 1.0)
 
         if args.x_max_us is not None:
             axis.set_xlim(right=args.x_max_us)
@@ -121,7 +171,8 @@ def main() -> int:
         figure.savefig(args.output, dpi=160)
         plt.close(figure)
 
-        print(f"ecdf_comparison_plot={args.output}")
+        plot_kind = "ccdf" if args.plot_ccdf else "ecdf"
+        print(f"{plot_kind}_comparison_plot={args.output}")
         return 0
 
     except Exception as exc:

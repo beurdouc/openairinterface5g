@@ -83,7 +83,7 @@ int nrLDPC_coding_encoder(nrLDPC_slot_encoding_parameters_t *slot_params)
   if (cpu.nb_TBs > 0) {
     ldpc_cpu.nrLDPC_coding_encoder(&cpu);
     for (int i = 0; i < cpu.nb_TBs; ++i)
-      slot_params->TBs[offset[i]] = cpu.TBs[0];
+      slot_params->TBs[offset[i]] = cpu.TBs[i];
   }
   return 0;
 }
@@ -113,7 +113,7 @@ int32_t nrLDPC_coding_decoder(nrLDPC_slot_decoding_parameters_t *slot_params)
   if (cpu.nb_TBs > 0) {
     ldpc_cpu.nrLDPC_coding_decoder(&cpu);
     for (int i = 0; i < cpu.nb_TBs; ++i)
-      slot_params->TBs[offset[i]] = cpu.TBs[0];
+      slot_params->TBs[offset[i]] = cpu.TBs[i];
   }
   return 0;
 }

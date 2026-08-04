@@ -33,6 +33,8 @@ typedef struct {
   uint64_t dl_tbs_total;
   int dl_mcs_min;
   int dl_mcs_max;
+  int dl_mcs_table_min;
+  int dl_mcs_table_max;
   int dl_layers_max;
   int dl_rv_nonzero_count;
 } rt_deadline_l1tx_context_t;
@@ -48,6 +50,8 @@ static inline rt_deadline_l1tx_context_t rt_deadline_l1tx_context_invalid(void)
       .dl_tbs_total = 0,
       .dl_mcs_min = -1,
       .dl_mcs_max = -1,
+      .dl_mcs_table_min = -1,
+      .dl_mcs_table_max = -1,
       .dl_layers_max = -1,
       .dl_rv_nonzero_count = 0,
   };
@@ -272,12 +276,12 @@ static inline void rt_probe_write_capture_csv(rt_deadline_probe_t *p, int final_
     return;
   }
 
-  fprintf(f, "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late,context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,dl_mcs_max,dl_layers_max,dl_rv_nonzero_count\n");
+  fprintf(f, "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late,context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,dl_mcs_max,dl_mcs_table_min,dl_mcs_table_max,dl_layers_max,dl_rv_nonzero_count\n");
 
   for (uint64_t i = 0; i < p->capture_count; i++) {
     const rt_deadline_capture_sample_t *sample = &p->capture_buffer[i];
     fprintf(f,
-            "%lu,%lu,%d,%d,%lu,%lu,%d,%d,%d,%d,%lu,%d,%d,%d,%d\n",
+            "%lu,%lu,%d,%d,%lu,%lu,%d,%d,%d,%d,%lu,%d,%d,%d,%d,%d,%d\n",
             sample->capture_index,
             sample->probe_total,
             sample->frame,
@@ -291,6 +295,8 @@ static inline void rt_probe_write_capture_csv(rt_deadline_probe_t *p, int final_
             sample->ctx.dl_tbs_total,
             sample->ctx.dl_mcs_min,
             sample->ctx.dl_mcs_max,
+            sample->ctx.dl_mcs_table_min,
+            sample->ctx.dl_mcs_table_max,
             sample->ctx.dl_layers_max,
             sample->ctx.dl_rv_nonzero_count);
   }
@@ -377,7 +383,7 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
 
       if (!p->capture_header_written) {
         fprintf(p->capture_fd,
-                "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late,context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,dl_mcs_max,dl_layers_max,dl_rv_nonzero_count\n");
+                "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late,context_valid,dl_pdsch_count,dl_prb_total,dl_tbs_total,dl_mcs_min,dl_mcs_max,dl_mcs_table_min,dl_mcs_table_max,dl_layers_max,dl_rv_nonzero_count\n");
         p->capture_header_written = 1;
       }
     }
@@ -386,7 +392,7 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
       const rt_deadline_capture_sample_t *sample = &p->capture_buffer[seq % p->capture_capacity];
 
       fprintf(p->capture_fd,
-              "%lu,%lu,%d,%d,%lu,%lu,%d,%d,%d,%d,%lu,%d,%d,%d,%d\n",
+              "%lu,%lu,%d,%d,%lu,%lu,%d,%d,%d,%d,%lu,%d,%d,%d,%d,%d,%d\n",
               sample->capture_index,
               sample->probe_total,
               sample->frame,
@@ -400,6 +406,8 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
               sample->ctx.dl_tbs_total,
               sample->ctx.dl_mcs_min,
               sample->ctx.dl_mcs_max,
+              sample->ctx.dl_mcs_table_min,
+              sample->ctx.dl_mcs_table_max,
               sample->ctx.dl_layers_max,
               sample->ctx.dl_rv_nonzero_count);
       flushed++;

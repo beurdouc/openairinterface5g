@@ -253,6 +253,8 @@ void *L1_tx_thread(void *arg) {
      if (slot_type == NR_DOWNLINK_SLOT) {
        if (!gNB->rt_l1_tx_job_probe.initialized) {
          rt_probe_init(&gNB->rt_l1_tx_job_probe, "L1_TX_JOB_DL");
+         rt_probe_set_capture_schema(&gNB->rt_l1_tx_job_probe,
+                                     RT_DEADLINE_CAPTURE_SCHEMA_L1TX);
          configure_gnb_l1tx_rt_probe(gNB);
        }
 

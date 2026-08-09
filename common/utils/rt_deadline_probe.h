@@ -64,8 +64,55 @@ typedef enum {
   RT_DEADLINE_CAPTURE_SCHEMA_L1RX,
 } rt_deadline_capture_schema_t;
 
+typedef struct {
+  int valid;
+  int frame;
+  int slot;
+  int ul_pucch_job_count;
+  int ul_pusch_job_count;
+  int ul_pusch_data_count;
+  int ul_pusch_decode_count;
+  int ul_srs_job_count;
+  int ul_pusch_prb_total;
+  uint64_t ul_pusch_tbs_total;
+  int ul_pusch_mcs_min;
+  int ul_pusch_mcs_max;
+  int ul_pusch_mcs_table_min;
+  int ul_pusch_mcs_table_max;
+  int ul_pusch_layers_max;
+  int ul_pusch_rv_nonzero_count;
+  int ul_crc_ok_count;
+  int ul_crc_fail_count;
+} rt_deadline_l1rx_context_t;
+
+static inline rt_deadline_l1rx_context_t rt_deadline_l1rx_context_invalid(void)
+{
+  rt_deadline_l1rx_context_t ctx = {
+      .valid = 0,
+      .frame = -1,
+      .slot = -1,
+      .ul_pucch_job_count = 0,
+      .ul_pusch_job_count = 0,
+      .ul_pusch_data_count = 0,
+      .ul_pusch_decode_count = 0,
+      .ul_srs_job_count = 0,
+      .ul_pusch_prb_total = 0,
+      .ul_pusch_tbs_total = 0,
+      .ul_pusch_mcs_min = -1,
+      .ul_pusch_mcs_max = -1,
+      .ul_pusch_mcs_table_min = -1,
+      .ul_pusch_mcs_table_max = -1,
+      .ul_pusch_layers_max = -1,
+      .ul_pusch_rv_nonzero_count = 0,
+      .ul_crc_ok_count = 0,
+      .ul_crc_fail_count = 0,
+  };
+  return ctx;
+}
+
 typedef union {
   rt_deadline_l1tx_context_t l1tx;
+  rt_deadline_l1rx_context_t l1rx;
 } rt_deadline_capture_context_t;
 
 typedef struct {

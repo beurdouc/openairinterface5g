@@ -58,6 +58,16 @@ static inline rt_deadline_l1tx_context_t rt_deadline_l1tx_context_invalid(void)
   return ctx;
 }
 
+typedef enum {
+  RT_DEADLINE_CAPTURE_SCHEMA_NONE = 0,
+  RT_DEADLINE_CAPTURE_SCHEMA_L1TX,
+  RT_DEADLINE_CAPTURE_SCHEMA_L1RX,
+} rt_deadline_capture_schema_t;
+
+typedef union {
+  rt_deadline_l1tx_context_t l1tx;
+} rt_deadline_capture_context_t;
+
 typedef struct {
   uint64_t capture_index;
   uint64_t probe_total;
@@ -66,7 +76,7 @@ typedef struct {
   uint64_t duration_us;
   uint64_t late_threshold_us;
   int late;
-  rt_deadline_l1tx_context_t ctx;
+  rt_deadline_capture_context_t ctx;
 } rt_deadline_capture_sample_t;
 
 static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
@@ -91,6 +101,7 @@ typedef struct {
   int initialized;
 
   rt_deadline_probe_config_t cfg;
+  rt_deadline_capture_schema_t capture_schema;
 
   uint64_t total;
   uint64_t sum_us;
@@ -154,6 +165,16 @@ static inline void rt_probe_init(rt_deadline_probe_t *p, const char *name)
   p->name = name;
   p->initialized = 1;
   p->cfg = rt_deadline_default_config();
+  p->capture_schema = RT_DEADLINE_CAPTURE_SCHEMA_NONE;
+}
+
+static inline void rt_probe_set_capture_schema(rt_deadline_probe_t *p,
+                                               rt_deadline_capture_schema_t schema)
+{
+  if (p == NULL)
+    return;
+
+  p->capture_schema = schema;
 }
 
 static inline void rt_probe_reset_capture(rt_deadline_probe_t *p)
@@ -190,6 +211,14 @@ static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
 
   if (!p->cfg.capture_enable || p->cfg.capture_samples == 0)
     return;
+
+  if (p->capture_schema != RT_DEADLINE_CAPTURE_SCHEMA_L1TX) {
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=unsupported_schema schema=%d\n",
+           p->name,
+           (int)p->capture_schema);
+    fflush(stdout);
+    return;
+  }
 
   if (p->capture_buffer != NULL)
     return;
@@ -289,16 +318,16 @@ static inline void rt_probe_write_capture_csv(rt_deadline_probe_t *p, int final_
             sample->duration_us,
             sample->late_threshold_us,
             sample->late,
-            sample->ctx.valid,
-            sample->ctx.dl_pdsch_count,
-            sample->ctx.dl_prb_total,
-            sample->ctx.dl_tbs_total,
-            sample->ctx.dl_mcs_min,
-            sample->ctx.dl_mcs_max,
-            sample->ctx.dl_mcs_table_min,
-            sample->ctx.dl_mcs_table_max,
-            sample->ctx.dl_layers_max,
-            sample->ctx.dl_rv_nonzero_count);
+            sample->ctx.l1tx.valid,
+            sample->ctx.l1tx.dl_pdsch_count,
+            sample->ctx.l1tx.dl_prb_total,
+            sample->ctx.l1tx.dl_tbs_total,
+            sample->ctx.l1tx.dl_mcs_min,
+            sample->ctx.l1tx.dl_mcs_max,
+            sample->ctx.l1tx.dl_mcs_table_min,
+            sample->ctx.l1tx.dl_mcs_table_max,
+            sample->ctx.l1tx.dl_layers_max,
+            sample->ctx.l1tx.dl_rv_nonzero_count);
   }
 
   if (fclose(f) != 0) {
@@ -400,16 +429,16 @@ static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_
               sample->duration_us,
               sample->late_threshold_us,
               sample->late,
-              sample->ctx.valid,
-              sample->ctx.dl_pdsch_count,
-              sample->ctx.dl_prb_total,
-              sample->ctx.dl_tbs_total,
-              sample->ctx.dl_mcs_min,
-              sample->ctx.dl_mcs_max,
-              sample->ctx.dl_mcs_table_min,
-              sample->ctx.dl_mcs_table_max,
-              sample->ctx.dl_layers_max,
-              sample->ctx.dl_rv_nonzero_count);
+              sample->ctx.l1tx.valid,
+              sample->ctx.l1tx.dl_pdsch_count,
+              sample->ctx.l1tx.dl_prb_total,
+              sample->ctx.l1tx.dl_tbs_total,
+              sample->ctx.l1tx.dl_mcs_min,
+              sample->ctx.l1tx.dl_mcs_max,
+              sample->ctx.l1tx.dl_mcs_table_min,
+              sample->ctx.l1tx.dl_mcs_table_max,
+              sample->ctx.l1tx.dl_layers_max,
+              sample->ctx.l1tx.dl_rv_nonzero_count);
       flushed++;
     }
 
@@ -500,6 +529,9 @@ static inline void rt_probe_capture_sample_with_l1tx_context(rt_deadline_probe_t
   if (!p->cfg.enabled || !p->cfg.capture_enable)
     return;
 
+  if (p->capture_schema != RT_DEADLINE_CAPTURE_SCHEMA_L1TX)
+    return;
+
   if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
     return;
 
@@ -521,7 +553,7 @@ static inline void rt_probe_capture_sample_with_l1tx_context(rt_deadline_probe_t
   sample->duration_us = duration_us;
   sample->late_threshold_us = p->cfg.late_threshold_us;
   sample->late = p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us;
-  sample->ctx = ctx != NULL ? *ctx : rt_deadline_l1tx_context_invalid();
+  sample->ctx.l1tx = ctx != NULL ? *ctx : rt_deadline_l1tx_context_invalid();
 
   __atomic_store_n(&p->capture_write_index, write_index + 1, __ATOMIC_RELEASE);
   __atomic_store_n(&p->capture_count, write_index + 1, __ATOMIC_RELAXED);

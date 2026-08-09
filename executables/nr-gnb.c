@@ -170,8 +170,7 @@ static void load_l1rx_rt_deadline_config_once(void)
    * The thresholds below are provisional observation thresholds.
    * They are not formally justified protocol deadlines.
    *
-   * CSV capture remains disabled until an explicit UL capture schema
-   * and context are introduced.
+   * L1RX capture uses its own explicit schema and fixed CSV path.
    */
   g_l1rx_rt_deadline_cfg.enabled = 1;
   g_l1rx_rt_deadline_cfg.report_period = 20000;
@@ -184,7 +183,12 @@ static void load_l1rx_rt_deadline_config_once(void)
   g_l1rx_rt_deadline_cfg.capture_enable = 0;
   g_l1rx_rt_deadline_cfg.capture_snapshot_enable = 0;
   g_l1rx_rt_deadline_cfg.capture_async_flush_enable = 0;
-  g_l1rx_rt_deadline_cfg.capture_final_dump_enable = 0;
+  g_l1rx_rt_deadline_cfg.capture_final_dump_enable = 1;
+  g_l1rx_rt_deadline_cfg.capture_samples = 20000;
+
+  snprintf(g_l1rx_rt_deadline_cfg.capture_path,
+           sizeof(g_l1rx_rt_deadline_cfg.capture_path),
+           "/tmp/rt_deadline_l1rx_samples.csv");
 
   int enabled = g_l1rx_rt_deadline_cfg.enabled;
   int report_period = (int)g_l1rx_rt_deadline_cfg.report_period;
@@ -194,6 +198,16 @@ static void load_l1rx_rt_deadline_config_once(void)
   int threshold2_us = (int)g_l1rx_rt_deadline_cfg.threshold_us[2];
   int threshold3_us = (int)g_l1rx_rt_deadline_cfg.threshold_us[3];
 
+  int capture_enable = g_l1rx_rt_deadline_cfg.capture_enable;
+  int capture_snapshot_enable =
+      g_l1rx_rt_deadline_cfg.capture_snapshot_enable;
+  int capture_async_flush_enable =
+      g_l1rx_rt_deadline_cfg.capture_async_flush_enable;
+  int capture_final_dump_enable =
+      g_l1rx_rt_deadline_cfg.capture_final_dump_enable;
+  int capture_samples =
+      (int)g_l1rx_rt_deadline_cfg.capture_samples;
+
   paramdef_t RTDeadlineL1RXParams[] = {
     {"enable", NULL, 0, .iptr = &enabled, .defintval = enabled, TYPE_INT, 0, NULL},
     {"report_period", NULL, 0, .iptr = &report_period, .defintval = report_period, TYPE_INT, 0, NULL},
@@ -202,6 +216,11 @@ static void load_l1rx_rt_deadline_config_once(void)
     {"threshold1_us", NULL, 0, .iptr = &threshold1_us, .defintval = threshold1_us, TYPE_INT, 0, NULL},
     {"threshold2_us", NULL, 0, .iptr = &threshold2_us, .defintval = threshold2_us, TYPE_INT, 0, NULL},
     {"threshold3_us", NULL, 0, .iptr = &threshold3_us, .defintval = threshold3_us, TYPE_INT, 0, NULL},
+    {"capture_enable", NULL, 0, .iptr = &capture_enable, .defintval = capture_enable, TYPE_INT, 0, NULL},
+    {"capture_snapshot_enable", NULL, 0, .iptr = &capture_snapshot_enable, .defintval = capture_snapshot_enable, TYPE_INT, 0, NULL},
+    {"capture_async_flush_enable", NULL, 0, .iptr = &capture_async_flush_enable, .defintval = capture_async_flush_enable, TYPE_INT, 0, NULL},
+    {"capture_final_dump_enable", NULL, 0, .iptr = &capture_final_dump_enable, .defintval = capture_final_dump_enable, TYPE_INT, 0, NULL},
+    {"capture_samples", NULL, 0, .iptr = &capture_samples, .defintval = capture_samples, TYPE_INT, 0, NULL},
   };
 
   config_get(config_get_if(),
@@ -241,18 +260,44 @@ static void load_l1rx_rt_deadline_config_once(void)
           ? (uint64_t)threshold3_us
           : g_l1rx_rt_deadline_cfg.threshold_us[3];
 
+  g_l1rx_rt_deadline_cfg.capture_enable =
+      capture_enable;
+
+  g_l1rx_rt_deadline_cfg.capture_snapshot_enable =
+      capture_snapshot_enable;
+
+  g_l1rx_rt_deadline_cfg.capture_async_flush_enable =
+      capture_async_flush_enable;
+
+  g_l1rx_rt_deadline_cfg.capture_final_dump_enable =
+      capture_final_dump_enable;
+
+  g_l1rx_rt_deadline_cfg.capture_samples =
+      capture_samples > 0
+          ? (uint64_t)capture_samples
+          : g_l1rx_rt_deadline_cfg.capture_samples;
+
   printf("RT_DEADLINE_CONFIG_L1RX enabled=%d report_period=%lu "
          "late_threshold_us=%lu "
          "threshold0_us=%lu threshold1_us=%lu "
          "threshold2_us=%lu threshold3_us=%lu "
-         "capture_enable=0\n",
+         "capture_enable=%d capture_snapshot_enable=%d "
+         "capture_async_flush_enable=%d "
+         "capture_final_dump_enable=%d capture_samples=%lu "
+         "capture_path=%s\n",
          g_l1rx_rt_deadline_cfg.enabled,
          g_l1rx_rt_deadline_cfg.report_period,
          g_l1rx_rt_deadline_cfg.late_threshold_us,
          g_l1rx_rt_deadline_cfg.threshold_us[0],
          g_l1rx_rt_deadline_cfg.threshold_us[1],
          g_l1rx_rt_deadline_cfg.threshold_us[2],
-         g_l1rx_rt_deadline_cfg.threshold_us[3]);
+         g_l1rx_rt_deadline_cfg.threshold_us[3],
+         g_l1rx_rt_deadline_cfg.capture_enable,
+         g_l1rx_rt_deadline_cfg.capture_snapshot_enable,
+         g_l1rx_rt_deadline_cfg.capture_async_flush_enable,
+         g_l1rx_rt_deadline_cfg.capture_final_dump_enable,
+         g_l1rx_rt_deadline_cfg.capture_samples,
+         g_l1rx_rt_deadline_cfg.capture_path);
 
   fflush(stdout);
 
@@ -383,6 +428,21 @@ void *L1_rx_thread(void *arg)
        rt_probe_record(&gNB->rt_l1_rx_job_probe,
                        rt_l1_rx_duration_us);
 
+       rt_deadline_l1rx_context_t rt_l1rx_ctx =
+           rt_deadline_l1rx_context_invalid();
+
+       if (gNB->rt_l1rx_slot_context.valid &&
+           gNB->rt_l1rx_slot_context.frame == info->frame_rx &&
+           gNB->rt_l1rx_slot_context.slot == info->slot_rx)
+         rt_l1rx_ctx = gNB->rt_l1rx_slot_context;
+
+       rt_probe_capture_sample_with_l1rx_context(
+           &gNB->rt_l1_rx_job_probe,
+           info->frame_rx,
+           info->slot_rx,
+           rt_l1_rx_duration_us,
+           &rt_l1rx_ctx);
+
        rt_probe_maybe_log_late(&gNB->rt_l1_rx_job_probe,
                                info->frame_rx,
                                info->slot_rx,
@@ -395,6 +455,9 @@ void *L1_rx_thread(void *arg)
 
      delNotifiedFIFO_elt(res);
   }
+
+  if (gNB->rt_l1_rx_job_probe.initialized)
+    rt_probe_dump_capture(&gNB->rt_l1_rx_job_probe);
 
   return NULL;
 }
@@ -742,10 +805,11 @@ void *nrL1_stats_thread(void *param) {
     fprintf(fd,"%s\n",output);
     fflush(fd);
     /*
-     * Flush L1TX deadline samples from the low-priority stats thread.
-     * The realtime L1TX path only writes to the bounded memory buffer.
+     * Flush L1 TX/RX deadline samples from the low-priority stats thread.
+     * The realtime L1 paths only write to their bounded memory buffers.
      */
     rt_probe_flush_capture_csv(&gNB->rt_l1_tx_job_probe, 0);
+    rt_probe_flush_capture_csv(&gNB->rt_l1_rx_job_probe, 0);
 
   }
 

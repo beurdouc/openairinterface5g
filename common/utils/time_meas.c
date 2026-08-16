@@ -135,7 +135,7 @@ size_t print_meas_log_header(time_stats_t *total_exec_time,
   if ((total_exec_time == NULL) || (sf_exec_time== NULL))
     output += snprintf(output,
                        end - output,
-                       "%25s   %18s  %18s  %18s  %15s  %18s  %18s  %18s  %18s  %18s  %18s %9s %6f\n",
+                       "%25s   %18s  %18s  %18s  %15s  %18s  %18s  %18s  %18s  %18s  %18s  %18s  %18s %9s %6f\n",
                        "Name",
                        "Total",
                        "Max",
@@ -147,6 +147,8 @@ size_t print_meas_log_header(time_stats_t *total_exec_time,
                        "median",
                        "q3",
                        "d9",
+                       "p99",
+                       "p999",
                        "CPU_F_GHz",
                        cpu_freq_GHz);
   else
@@ -178,7 +180,7 @@ size_t print_meas_log(time_stats_t *ts,
       if (is_enabled_time_stats_sorted_list(&ts->time_stats_sorted_list)) {
         output += snprintf(output,
                            end - output,
-                           "%25s:  %15.3f us; %15.3f us; %15.3f us; %15d; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us;\n",
+                           "%25s:  %15.3f us; %15.3f us; %15.3f us; %15d; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us;\n",
                            name,
                            ts->diff / ts->trials / 1000.0,
                            ts->max / 1000.0,
@@ -189,7 +191,9 @@ size_t print_meas_log(time_stats_t *ts,
                            get_q1(&ts->time_stats_sorted_list) / 1000.0,
                            get_median(&ts->time_stats_sorted_list) / 1000.0,
                            get_q3(&ts->time_stats_sorted_list) / 1000.0,
-                           get_d9(&ts->time_stats_sorted_list) / 1000.0);
+                           get_d9(&ts->time_stats_sorted_list) / 1000.0,
+                           get_p99(&ts->time_stats_sorted_list) / 1000.0,
+                           get_p999(&ts->time_stats_sorted_list) / 1000.0);
       } else {
         output += snprintf(output,
                            end - output,
@@ -599,6 +603,32 @@ oai_cputime_t get_d9(time_stats_sorted_list_t *list)
 {
   if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
     return list->list[9 * list->nb_elm / 10];
+
+  return -1;
+}
+
+/**
+ * \brief get p99 from a sorted list
+ * if the sorted list is not initialized or empty then returns -1
+ * \param list sorted list to query
+ */
+oai_cputime_t get_p99(time_stats_sorted_list_t *list)
+{
+  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
+    return list->list[99 * list->nb_elm / 100];
+
+  return -1;
+}
+
+/**
+ * \brief get p99.9 from a sorted list
+ * if the sorted list is not initialized or empty then returns -1
+ * \param list sorted list to query
+ */
+oai_cputime_t get_p999(time_stats_sorted_list_t *list)
+{
+  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
+    return list->list[999 * list->nb_elm / 1000];
 
   return -1;
 }

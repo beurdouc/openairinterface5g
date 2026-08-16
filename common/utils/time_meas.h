@@ -159,6 +159,20 @@ oai_cputime_t get_d1(time_stats_sorted_list_t *list);
  */
 oai_cputime_t get_d9(time_stats_sorted_list_t *list);
 
+/**
+ * \brief get p99 from a sorted list
+ * if the sorted list is not initialized or empty then returns -1
+ * \param time_stats_sorted_list sorted list to query
+ */
+oai_cputime_t get_p99(time_stats_sorted_list_t *list);
+
+/**
+ * \brief get p99.9 from a sorted list
+ * if the sorted list is not initialized or empty then returns -1
+ * \param time_stats_sorted_list sorted list to query
+ */
+oai_cputime_t get_p999(time_stats_sorted_list_t *list);
+
 struct notifiedFIFO_elt_s;
 typedef struct time_stats {
   oai_cputime_t in;                                /*!< \brief time at measure starting point */
@@ -370,6 +384,8 @@ static inline void merge_meas_on_ul(time_stats_t *dst_ts, const time_stats_t *sr
 }
 
 #define TIME_STATS_ADVANCED_MODE 2
+#define TIME_STATS_TAIL_ANALYSIS 3
+#define TAIL_ANALYSIS_FACTOR 3
 
 static inline void init_sorted_list_meas(time_stats_t *ts, unsigned int size)
 {

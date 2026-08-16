@@ -374,7 +374,7 @@ static size_t dump_L1_meas_stats(PHY_VARS_gNB *gNB, RU_t *ru, char *output, size
 
   output += print_meas_log(&ru->tx_fhaul,"tx_fhaul",NULL,NULL, output, end - output);
 
-  if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {
+  if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE || cpu_meas_enabled == TIME_STATS_TAIL_ANALYSIS) {
     nrL1_stats_reset(gNB, ru);
   }
   return output - begin;
@@ -393,14 +393,22 @@ void *nrL1_stats_thread(void *param) {
     return NULL;
   }
 
-  if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {
-    nrL1_stats_init_sorted_list(gNB, ru, SORTED_LIST_SIZE);
+  if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE || cpu_meas_enabled == TIME_STATS_TAIL_ANALYSIS) {
+    unsigned int size = SORTED_LIST_SIZE;
+    if (cpu_meas_enabled == TIME_STATS_TAIL_ANALYSIS) {
+      size = TAIL_ANALYSIS_FACTOR * size;
+    }
+    nrL1_stats_init_sorted_list(gNB, ru, size);
   }
 
   nrL1_stats_reset(gNB, ru);
 
   while (!oai_exit) {
-    sleep(1);
+    if (cpu_meas_enabled == TIME_STATS_TAIL_ANALYSIS) {
+      sleep(TAIL_ANALYSIS_FACTOR);
+    } else {
+      sleep(1);
+    }
     if (ftruncate(fileno(fd), 0) != 0 || fseek(fd, 0, SEEK_SET) != 0) {
       LOG_E(NR_MAC, "error while writing nrL1_stats.log: %d, %s\n", errno, strerror(errno));
       break;
@@ -413,7 +421,7 @@ void *nrL1_stats_thread(void *param) {
     fflush(fd);
   }
 
-  if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {
+  if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE || cpu_meas_enabled == TIME_STATS_TAIL_ANALYSIS) {
     nrL1_stats_free_sorted_list(gNB, ru);
   }
 

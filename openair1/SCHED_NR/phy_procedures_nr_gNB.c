@@ -1300,6 +1300,8 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     stop_meas_on_ul(&gNB->ulsch_decoding_stats, slot_type);
   }
 
+  stop_meas_on_ul(&gNB->phy_proc_rx, slot_type);
+
   UL_INFO->srs_ind.sfn = frame_rx;
   UL_INFO->srs_ind.slot = slot_rx;
   UL_INFO->srs_ind.pdu_list = UL_INFO->srs_pdu_list;
@@ -1309,8 +1311,6 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     handle_srs(now, gNB, &srs[i], &UL_INFO->srs_ind.pdu_list[i], &UL_INFO->srs_toa_vendor_ext_ind);
     stop_meas(&gNB->rx_srs_stats);
   }
-
-  stop_meas_on_ul(&gNB->phy_proc_rx, slot_type);
 
   if (n_pucch > 0 || num_pusch > 0) {
     UNUSED(ofdm_symbol_size); // only used if T activated

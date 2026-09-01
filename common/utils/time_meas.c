@@ -2,7 +2,6 @@
  * SPDX-License-Identifier: LicenseRef-CSSL-1.0
  */
 #define _GNU_SOURCE
-#define BINARY_SEARCH
 #include <stdio.h>
 #include "time_meas.h"
 #include <math.h>
@@ -88,7 +87,7 @@ void print_meas(time_stats_t *ts,
 {
   if (ts->trials>0) {
     if ((total_exec_time == NULL) || (sf_exec_time == NULL)) {
-      if (is_enabled_time_stats_sorted_list(&ts->time_stats_sorted_list)) {
+      if (is_enabled_time_stats_histogram(&ts->time_stats_histogram)) {
         fprintf(stderr,
                 "%25s:  %15.3f us; %15.3f us; %15.3f us; %15d; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us;\n",
                 name,
@@ -96,12 +95,12 @@ void print_meas(time_stats_t *ts,
                 ts->max / 1000.0,
                 get_std_dev(ts),
                 ts->trials,
-                get_min(&ts->time_stats_sorted_list) / 1000.0,
-                get_d1(&ts->time_stats_sorted_list) / 1000.0,
-                get_q1(&ts->time_stats_sorted_list) / 1000.0,
-                get_median(&ts->time_stats_sorted_list) / 1000.0,
-                get_q3(&ts->time_stats_sorted_list) / 1000.0,
-                get_d9(&ts->time_stats_sorted_list) / 1000.0);
+                get_min(&ts->time_stats_histogram) / 1000.0,
+                get_d1(&ts->time_stats_histogram) / 1000.0,
+                get_q1(&ts->time_stats_histogram) / 1000.0,
+                get_median(&ts->time_stats_histogram) / 1000.0,
+                get_q3(&ts->time_stats_histogram) / 1000.0,
+                get_d9(&ts->time_stats_histogram) / 1000.0);
       } else {
         fprintf(stderr,
                 "%25s:  %15.3f us; %15.3f us; %15.3f us; %15d;\n",
@@ -188,7 +187,7 @@ size_t print_meas_log(time_stats_t *ts,
 
   if (ts->trials > 0) {
     if ((total_exec_time == NULL) || (sf_exec_time == NULL)) {
-      if (is_enabled_time_stats_sorted_list(&ts->time_stats_sorted_list)) {
+      if (is_enabled_time_stats_histogram(&ts->time_stats_histogram)) {
         output += snprintf(output,
                            end - output,
                            "%25s:  %15.3f us; %15.3f us; %15.3f us; %15d; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us; %15.3f us;\n",
@@ -197,12 +196,12 @@ size_t print_meas_log(time_stats_t *ts,
                            ts->max / 1000.0,
                            get_std_dev(ts),
                            ts->trials,
-                           get_min(&ts->time_stats_sorted_list) / 1000.0,
-                           get_d1(&ts->time_stats_sorted_list) / 1000.0,
-                           get_q1(&ts->time_stats_sorted_list) / 1000.0,
-                           get_median(&ts->time_stats_sorted_list) / 1000.0,
-                           get_q3(&ts->time_stats_sorted_list) / 1000.0,
-                           get_d9(&ts->time_stats_sorted_list) / 1000.0);
+                           get_min(&ts->time_stats_histogram) / 1000.0,
+                           get_d1(&ts->time_stats_histogram) / 1000.0,
+                           get_q1(&ts->time_stats_histogram) / 1000.0,
+                           get_median(&ts->time_stats_histogram) / 1000.0,
+                           get_q3(&ts->time_stats_histogram) / 1000.0,
+                           get_d9(&ts->time_stats_histogram) / 1000.0);
       } else {
         output += snprintf(output,
                            end - output,
@@ -255,6 +254,7 @@ time_stats_t *register_meas(char *name)
       measur_table[i]->meas_index = i;
       measur_table[i]->tpoolmsg =newNotifiedFIFO_elt(sizeof(time_stats_msg_t),0,NULL,NULL);
       measur_table[i]->tstatptr = (time_stats_msg_t *)NotifiedFifoData(measur_table[i]->tpoolmsg);
+      init_time_stats_histogram(&measur_table[i]->time_stats_histogram);
       return measur_table[i];
     }
   }
@@ -358,261 +358,216 @@ void end_meas(void) {
 }
 
 /**
- * \brief initializes sorted list
- * if dst is already initialized then asserts
- * \param list sorted list to be initialized
- * \param size size of the sorted list
+ * \brief initializes histogram
+ * \param hist histogram to be initialized
  */
-void init_time_stats_sorted_list(time_stats_sorted_list_t *list, unsigned int size)
+void init_time_stats_histogram(time_stats_histogram_t *hist)
 {
-  if (list == NULL)
+  if (hist == NULL)
     return;
 
-  AssertFatal(list->magic != TIME_STATS_SORTED_LIST_MAGIC,
-              "Calling init_time_stats_sorted_list on initialized sorted list\n");
+  AssertFatal(hist->magic != TIME_STATS_HISTOGRAM_MAGIC,
+              "Calling init_time_stats_histogram on initialized histogram\n");
 
-  list->size = 0;
-  list->nb_elm = 0;
-  list->list = NULL;
-  list->magic = 0;
-
-  if (size == 0)
-    return;
-
-  list->list = calloc(size, sizeof(oai_cputime_t));
-  AssertFatal(list->list != NULL, "Could not allocate sorted list for time stats\n");
-
-  list->size = size;
-  list->nb_elm = 0;
-  list->magic = TIME_STATS_SORTED_LIST_MAGIC;
+  memset(hist->counts, 0, sizeof(hist->counts));
+  hist->magic = TIME_STATS_HISTOGRAM_MAGIC;
 }
 
 /**
- * \brief free sorted list
- * if dst is already free then does nothing
- * \param list sorted list to be freed
+ * \brief free histogram
+ * \param hist histogram to be freed
  */
-void free_time_stats_sorted_list(time_stats_sorted_list_t *list)
+void free_time_stats_histogram(time_stats_histogram_t *hist)
 {
-  if (list == NULL)
+  if (hist == NULL)
     return;
 
-  if (list->magic == TIME_STATS_SORTED_LIST_MAGIC && list->list != NULL)
-    free(list->list);
-
-  list->size = 0;
-  list->nb_elm = 0;
-  list->magic = 0;
-  list->list = NULL;
+  hist->magic = 0;
 }
 
 /**
- * \brief returns true if the sorted list is enabled and false otherwise
- * \param list sorted list to be tested
+ * \brief returns true if the histogram is enabled and false otherwise
+ * \param hist histogram to be tested
  */
-int is_enabled_time_stats_sorted_list(const time_stats_sorted_list_t *list)
+int is_enabled_time_stats_histogram(const time_stats_histogram_t *hist)
 {
-  return list != NULL
-         && list->magic == TIME_STATS_SORTED_LIST_MAGIC
-         && list->size > 0
-         && list->list != NULL
-         && list->nb_elm <= list->size;
+  return hist != NULL && hist->magic == TIME_STATS_HISTOGRAM_MAGIC;
 }
 
 /**
- * \brief empties sorted list
- * if dst is not initialized then does nothing
- * \param list sorted list to be emptied
+ * \brief resets histogram (clears all counts)
+ * \param hist histogram to be reset
  */
-void reset_time_stats_sorted_list(time_stats_sorted_list_t *list)
+void reset_time_stats_histogram(time_stats_histogram_t *hist)
 {
-  if (!is_enabled_time_stats_sorted_list(list))
+  if (!is_enabled_time_stats_histogram(hist))
     return;
 
-  list->nb_elm = 0;
+  memset(hist->counts, 0, sizeof(hist->counts));
 }
 
-#ifdef BINARY_SEARCH
 /**
- * \brief searches an index in sorted list dst
- * between low_bound and high_bound to insert value
- * \param value value to search an index for
- * \param dst destination sorted list
- * \param low_bound lower bound for binary search
- * \param high_bound higher bound for binary search
+ * \brief inserts value into histogram
+ * if value is out of range, it is dropped
+ * \param hist histogram to insert in
+ * \param time time value to insert in nanoseconds
  */
-static inline unsigned int binary_search(oai_cputime_t value, time_stats_sorted_list_t *dst, unsigned int low_bound, unsigned int high_bound)
+void insert_in_time_stats_histogram(time_stats_histogram_t *hist, oai_cputime_t time)
 {
-  unsigned int low = low_bound;
-  unsigned int high = high_bound;
-  bool converged = false;
-  unsigned int i;
-  while (!converged) {
-    i = (high + low) / 2;
-    if (i > 0 && dst->list[i - 1] > value) {
-      high = i - 1;
-    } else if (i < dst->nb_elm && dst->list[i] < value) {
-      low = i + 1;
-    } else {
-      converged = true;
-    }
+  if (!is_enabled_time_stats_histogram(hist))
+    return;
+
+  // Check if time is within histogram range [0, TIME_MEAS_HISTOGRAM_SPAN_NS)
+  if (time < 0 || time >= TIME_MEAS_HISTOGRAM_SPAN_NS)
+    return; // Drop out-of-range values
+
+  // Calculate bin index
+  unsigned int bin_index = time / TIME_MEAS_HISTOGRAM_BIN_WIDTH_NS;
+  
+  // Ensure bin index is within bounds (should be due to range check above)
+  if (bin_index < TIME_MEAS_HISTOGRAM_NUM_BINS)
+    hist->counts[bin_index]++;
+}
+
+/**
+ * \brief copy histogram src into dst
+ * \param dst destination histogram
+ * \param src source histogram
+ */
+void copy_time_stats_histogram(time_stats_histogram_t *dst, const time_stats_histogram_t *src)
+{
+  if (!is_enabled_time_stats_histogram(dst) || !is_enabled_time_stats_histogram(src))
+    return;
+
+  memcpy(dst->counts, src->counts, sizeof(dst->counts));
+}
+
+/**
+ * \brief merges histogram src into dst
+ * \param dst destination histogram
+ * \param src source histogram
+ */
+void merge_time_stats_histogram(time_stats_histogram_t *dst, const time_stats_histogram_t *src)
+{
+  if (!is_enabled_time_stats_histogram(dst) || !is_enabled_time_stats_histogram(src))
+    return;
+
+  for (unsigned int i = 0; i < TIME_MEAS_HISTOGRAM_NUM_BINS; i++)
+    dst->counts[i] += src->counts[i];
+}
+
+/**
+ * \brief helper function to compute cumulative count up to a given bin
+ */
+static unsigned int get_cumulative_count(const time_stats_histogram_t *hist, unsigned int bin_index)
+{
+  unsigned int total = 0;
+  for (unsigned int i = 0; i <= bin_index && i < TIME_MEAS_HISTOGRAM_NUM_BINS; i++)
+    total += hist->counts[i];
+  return total;
+}
+
+/**
+ * \brief helper function to compute total count in histogram
+ */
+static unsigned int get_total_count(const time_stats_histogram_t *hist)
+{
+  return get_cumulative_count(hist, TIME_MEAS_HISTOGRAM_NUM_BINS - 1);
+}
+
+/**
+ * \brief get the minimum from a histogram
+ * returns 0 if no entries, otherwise the lower bound of the first non-empty bin
+ * \param hist histogram to query
+ */
+oai_cputime_t get_min(time_stats_histogram_t *hist)
+{
+  if (!is_enabled_time_stats_histogram(hist))
+    return 0;
+
+  for (unsigned int i = 0; i < TIME_MEAS_HISTOGRAM_NUM_BINS; i++)
+    if (hist->counts[i] > 0)
+      return i * TIME_MEAS_HISTOGRAM_BIN_WIDTH_NS;
+
+  return 0;
+}
+
+/**
+ * \brief get a percentile value from histogram
+ * \param hist histogram to query
+ * \param percentile percentile to get (0.0 to 1.0)
+ * \return approximate time value for the percentile
+ */
+static oai_cputime_t get_percentile_histogram(time_stats_histogram_t *hist, double percentile)
+{
+  if (!is_enabled_time_stats_histogram(hist))
+    return 0;
+
+  unsigned int total_count = get_total_count(hist);
+  if (total_count == 0)
+    return 0;
+
+  // Calculate target count for the percentile
+  unsigned int target_count = (unsigned int)(percentile * total_count);
+  
+  // Find the bin where cumulative count reaches or exceeds target
+  unsigned int cumulative = 0;
+  for (unsigned int i = 0; i < TIME_MEAS_HISTOGRAM_NUM_BINS; i++) {
+    cumulative += hist->counts[i];
+    if (cumulative > target_count)
+      return i * TIME_MEAS_HISTOGRAM_BIN_WIDTH_NS;
   }
-  return i;
-}
-#endif
 
-/**
- * \brief inserts value sorted list
- * if dst is not initialized then does nothing
- * if dst is full then does nothing
- * \param list sorted list to insert in
- * \param time time value to insert
- */
-void insert_in_time_stats_sorted_list(time_stats_sorted_list_t *list, oai_cputime_t time)
-{
-  if (!is_enabled_time_stats_sorted_list(list))
-    return;
-
-  if (list->nb_elm < list->size) {
-      unsigned int i = 0;
-#ifdef BINARY_SEARCH
-      i = binary_search(time, list, 0, list->nb_elm);
-#else
-      for (; i < list->nb_elm && list->list[i] < time; i++);
-#endif
-      // dst and src may overlap => use memmove rather than memcpy
-      memmove(&list->list[i+1], &list->list[i], (list->nb_elm - i) * sizeof(oai_cputime_t));
-      list->list[i] = time;
-      list->nb_elm++;
-  }
+  // If we get here, return the upper bound
+  return (TIME_MEAS_HISTOGRAM_NUM_BINS - 1) * TIME_MEAS_HISTOGRAM_BIN_WIDTH_NS;
 }
 
 /**
- * \brief copy sorted list src into dst, freeing and replacing dst
- * dst and src should be initialized, otherwise does nothing
- * \param dst destination sorted list
- * should be intitialized even with a dummy size 1 buffer to make sure that copying the list there is expected by the caller
- * \param src source sorted list
+ * \brief get the median from a histogram
+ * returns 0 if no entries, otherwise an approximation from the histogram
+ * \param hist histogram to query
  */
-void copy_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stats_sorted_list_t *src)
+oai_cputime_t get_median(time_stats_histogram_t *hist)
 {
-  if (!is_enabled_time_stats_sorted_list(dst) || !is_enabled_time_stats_sorted_list(src))
-    return;
-
-  if (dst->size != src->size) {
-    free_time_stats_sorted_list(dst);
-    init_time_stats_sorted_list(dst, src->size);
-  }
-
-  if (!is_enabled_time_stats_sorted_list(dst))
-    return;
-
-  memcpy(dst->list, src->list, src->nb_elm * sizeof(oai_cputime_t));
-  dst->nb_elm = src->nb_elm;
+  return get_percentile_histogram(hist, 0.5);
 }
 
 /**
- * \brief inserts the content of sorted list src into dst
- * dst and src should be initialized, otherwise does nothing
- * if dst is not large enough to copy src then does nothing
- * \param dst destination sorted list
- * \param src source sorted list
+ * \brief get the first quartile from a histogram
+ * returns 0 if no entries, otherwise an approximation from the histogram
+ * \param hist histogram to query
  */
-void merge_time_stats_sorted_list(time_stats_sorted_list_t *dst, const time_stats_sorted_list_t *src)
+oai_cputime_t get_q1(time_stats_histogram_t *hist)
 {
-  if (is_enabled_time_stats_sorted_list(dst) && is_enabled_time_stats_sorted_list(src)) {
-    if ((dst->size - dst->nb_elm) >= src->nb_elm) {
-      unsigned int j = 0;
-      for (unsigned int i = 0; i < src->nb_elm; i++) {
-#ifdef BINARY_SEARCH
-        j = binary_search(src->list[i], dst, j + 1, dst->nb_elm);
-#else
-        for (; j < dst->nb_elm && dst->list[j] < src->list[i]; j++);
-#endif
-        // dst and src may overlap => use memmove rather than memcpy
-        memmove(&dst->list[j+1], &dst->list[j], (dst->nb_elm - j) * sizeof(oai_cputime_t));
-        dst->list[j] = src->list[i];
-        dst->nb_elm++;
-        j++;
-      }
-    }
-  }
+  return get_percentile_histogram(hist, 0.25);
 }
 
 /**
- * \brief get the minimum from a sorted list
- * if the sorted list is not initialized or empty then returns -1
- * \param list sorted list to query
+ * \brief get the third quartile from a histogram
+ * returns 0 if no entries, otherwise an approximation from the histogram
+ * \param hist histogram to query
  */
-oai_cputime_t get_min(time_stats_sorted_list_t *list)
+oai_cputime_t get_q3(time_stats_histogram_t *hist)
 {
-  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
-    return list->list[0];
-
-  return -1;
+  return get_percentile_histogram(hist, 0.75);
 }
 
 /**
- * \brief get the median from a sorted list
- * if the sorted list is not initialized or empty then returns -1
- * \param list sorted list to query
+ * \brief get the first decile from a histogram
+ * returns 0 if no entries, otherwise an approximation from the histogram
+ * \param hist histogram to query
  */
-oai_cputime_t get_median(time_stats_sorted_list_t *list)
+oai_cputime_t get_d1(time_stats_histogram_t *hist)
 {
-  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
-    return list->list[list->nb_elm / 2];
-
-  return -1;
+  return get_percentile_histogram(hist, 0.1);
 }
 
 /**
- * \brief get the first quartile from a sorted list
- * if the sorted list is not initialized or empty then returns -1
- * \param list sorted list to query
+ * \brief get the nineth decile from a histogram
+ * returns 0 if no entries, otherwise an approximation from the histogram
+ * \param hist histogram to query
  */
-oai_cputime_t get_q1(time_stats_sorted_list_t *list)
+oai_cputime_t get_d9(time_stats_histogram_t *hist)
 {
-  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
-    return list->list[list->nb_elm / 4];
-
-  return -1;
-}
-
-/**
- * \brief get the third quartile from a sorted list
- * if the sorted list is not initialized or empty then returns -1
- * \param list sorted list to query
- */
-oai_cputime_t get_q3(time_stats_sorted_list_t *list)
-{
-  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
-    return list->list[3 * list->nb_elm / 4];
-
-  return -1;
-}
-
-/**
- * \brief get the first decile from a sorted list
- * if the sorted list is not initialized or empty then returns -1
- * \param list sorted list to query
- */
-oai_cputime_t get_d1(time_stats_sorted_list_t *list)
-{
-  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
-    return list->list[list->nb_elm / 10];
-
-  return -1;
-}
-
-/**
- * \brief get the nineth decile from a sorted list
- * if the sorted list is not initialized or empty then returns -1
- * \param list sorted list to query
- */
-oai_cputime_t get_d9(time_stats_sorted_list_t *list)
-{
-  if (is_enabled_time_stats_sorted_list(list) && list->nb_elm > 0)
-    return list->list[9 * list->nb_elm / 10];
-
-  return -1;
+  return get_percentile_histogram(hist, 0.9);
 }

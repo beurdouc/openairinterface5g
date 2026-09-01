@@ -216,71 +216,71 @@ static void rx_func(processingData_L1_t *info)
 
 }
 
-static void nrL1_stats_init_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru, unsigned int size)
+static void nrL1_stats_init_histogram(PHY_VARS_gNB *gNB, RU_t *ru, unsigned int size)
 {
-  init_sorted_list_meas(&gNB->l1_tx_proc, size);
-  init_sorted_list_meas(&gNB->l1_rx_proc, size);
-  init_sorted_list_meas(&gNB->phy_proc_tx, size);
-  init_sorted_list_meas(&gNB->gnb_tx_procedures_stats, size);
-  init_sorted_list_meas(&gNB->ru_tx_func_stats, size);
-  init_sorted_list_meas(&gNB->dlsch_encoding_stats, size);
-  init_sorted_list_meas(&gNB->dlsch_ldpc_encode_stats, size);
-  init_sorted_list_meas(&gNB->dlsch_scrambling_stats, size);
-  init_sorted_list_meas(&gNB->dlsch_modulation_stats, size);
-  init_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats, size);
-  init_sorted_list_meas(&gNB->phy_proc_rx, size);
-  init_sorted_list_meas(&gNB->ulsch_decoding_stats, size);
-  init_sorted_list_meas(&gNB->ts_ldpc_decode, size);
-  init_sorted_list_meas(&gNB->ul_indication_stats, size);
-  init_sorted_list_meas(&gNB->slot_indication_stats, size);
-  init_sorted_list_meas(&gNB->rx_pusch_stats, size);
-  init_sorted_list_meas(&gNB->rx_prach, size);
+  init_time_stats_histogram(&gNB->l1_tx_proc.time_stats_histogram);
+  init_time_stats_histogram(&gNB->l1_rx_proc.time_stats_histogram);
+  init_time_stats_histogram(&gNB->phy_proc_tx.time_stats_histogram);
+  init_time_stats_histogram(&gNB->gnb_tx_procedures_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->ru_tx_func_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->dlsch_encoding_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->dlsch_ldpc_encode_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->dlsch_scrambling_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->dlsch_modulation_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->dlsch_pdsch_generation_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->phy_proc_rx.time_stats_histogram);
+  init_time_stats_histogram(&gNB->ulsch_decoding_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->ts_ldpc_decode.time_stats_histogram);
+  init_time_stats_histogram(&gNB->ul_indication_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->slot_indication_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->rx_pusch_stats.time_stats_histogram);
+  init_time_stats_histogram(&gNB->rx_prach.time_stats_histogram);
   if (ru->feprx) {
-    init_sorted_list_meas(&ru->ofdm_demod_stats, size);
+    init_time_stats_histogram(&ru->ofdm_demod_stats.time_stats_histogram);
   }
   if (ru->feptx_prec) {
-    init_sorted_list_meas(&ru->precoding_stats, size);
+    init_time_stats_histogram(&ru->precoding_stats.time_stats_histogram);
   }
   if (ru->feptx_ofdm) {
-    init_sorted_list_meas(&ru->txdataF_copy_stats, size);
-    init_sorted_list_meas(&ru->ofdm_mod_stats, size);
-    init_sorted_list_meas(&ru->ofdm_total_stats, size);
+    init_time_stats_histogram(&ru->txdataF_copy_stats.time_stats_histogram);
+    init_time_stats_histogram(&ru->ofdm_mod_stats.time_stats_histogram);
+    init_time_stats_histogram(&ru->ofdm_total_stats.time_stats_histogram);
   }
-  init_sorted_list_meas(&ru->tx_fhaul, size);
+  init_time_stats_histogram(&ru->tx_fhaul.time_stats_histogram);
 }
 
-static void nrL1_stats_free_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru)
+static void nrL1_stats_free_histogram(PHY_VARS_gNB *gNB, RU_t *ru)
 {
-  free_sorted_list_meas(&gNB->l1_tx_proc);
-  free_sorted_list_meas(&gNB->l1_rx_proc);
-  free_sorted_list_meas(&gNB->phy_proc_tx);
-  free_sorted_list_meas(&gNB->gnb_tx_procedures_stats);
-  free_sorted_list_meas(&gNB->ru_tx_func_stats);
-  free_sorted_list_meas(&gNB->dlsch_encoding_stats);
-  free_sorted_list_meas(&gNB->dlsch_ldpc_encode_stats);
-  free_sorted_list_meas(&gNB->dlsch_scrambling_stats);
-  free_sorted_list_meas(&gNB->dlsch_modulation_stats);
-  free_sorted_list_meas(&gNB->dlsch_pdsch_generation_stats);
-  free_sorted_list_meas(&gNB->phy_proc_rx);
-  free_sorted_list_meas(&gNB->ulsch_decoding_stats);
-  free_sorted_list_meas(&gNB->ts_ldpc_decode);
-  free_sorted_list_meas(&gNB->ul_indication_stats);
-  free_sorted_list_meas(&gNB->slot_indication_stats);
-  free_sorted_list_meas(&gNB->rx_pusch_stats);
-  free_sorted_list_meas(&gNB->rx_prach);
+  free_time_stats_histogram(&gNB->l1_tx_proc.time_stats_histogram);
+  free_time_stats_histogram(&gNB->l1_rx_proc.time_stats_histogram);
+  free_time_stats_histogram(&gNB->phy_proc_tx.time_stats_histogram);
+  free_time_stats_histogram(&gNB->gnb_tx_procedures_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->ru_tx_func_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->dlsch_encoding_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->dlsch_ldpc_encode_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->dlsch_scrambling_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->dlsch_modulation_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->dlsch_pdsch_generation_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->phy_proc_rx.time_stats_histogram);
+  free_time_stats_histogram(&gNB->ulsch_decoding_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->ts_ldpc_decode.time_stats_histogram);
+  free_time_stats_histogram(&gNB->ul_indication_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->slot_indication_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->rx_pusch_stats.time_stats_histogram);
+  free_time_stats_histogram(&gNB->rx_prach.time_stats_histogram);
   if (ru->feprx) {
-    free_sorted_list_meas(&ru->ofdm_demod_stats);
+    free_time_stats_histogram(&ru->ofdm_demod_stats.time_stats_histogram);
   }
   if (ru->feptx_prec) {
-    free_sorted_list_meas(&ru->precoding_stats);
+    free_time_stats_histogram(&ru->precoding_stats.time_stats_histogram);
   }
   if (ru->feptx_ofdm) {
-    free_sorted_list_meas(&ru->txdataF_copy_stats);
-    free_sorted_list_meas(&ru->ofdm_mod_stats);
-    free_sorted_list_meas(&ru->ofdm_total_stats);
-    free_sorted_list_meas(&ru->txdataF_copy_stats);
+    free_time_stats_histogram(&ru->txdataF_copy_stats.time_stats_histogram);
+    free_time_stats_histogram(&ru->ofdm_mod_stats.time_stats_histogram);
+    free_time_stats_histogram(&ru->ofdm_total_stats.time_stats_histogram);
+    free_time_stats_histogram(&ru->txdataF_copy_stats.time_stats_histogram);
   }
-  free_sorted_list_meas(&ru->tx_fhaul);
+  free_time_stats_histogram(&ru->tx_fhaul.time_stats_histogram);
 }
 
 static void nrL1_stats_reset(PHY_VARS_gNB *gNB, RU_t *ru)
@@ -398,7 +398,7 @@ void *nrL1_stats_thread(void *param) {
   }
 
   if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {
-    nrL1_stats_init_sorted_list(gNB, ru, SORTED_LIST_SIZE);
+    nrL1_stats_init_histogram(gNB, ru, SORTED_LIST_SIZE);
   }
 
   nrL1_stats_reset(gNB, ru);
@@ -418,7 +418,7 @@ void *nrL1_stats_thread(void *param) {
   }
 
   if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {
-    nrL1_stats_free_sorted_list(gNB, ru);
+    nrL1_stats_free_histogram(gNB, ru);
   }
 
   fclose(fd);

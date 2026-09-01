@@ -4,11 +4,11 @@
 
 #include "PHY/defs_common.h"
 
-static inline double time_stats_value_us(time_stats_t *ptr, oai_cputime_t (*getter)(time_stats_sorted_list_t *))
+static inline double time_stats_value_us(time_stats_t *ptr, oai_cputime_t (*getter)(time_stats_histogram_t *))
 {
-  if (ptr == NULL || !is_enabled_time_stats_sorted_list(&ptr->time_stats_sorted_list))
+  if (ptr == NULL || !is_enabled_time_stats_histogram(&ptr->time_stats_histogram))
     return 0;
-  oai_cputime_t value = getter(&ptr->time_stats_sorted_list);
+  oai_cputime_t value = getter(&ptr->time_stats_histogram);
   return value >= 0 ? value / 1000.0 : 0;
 }
 

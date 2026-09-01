@@ -1400,19 +1400,19 @@ int main(int argc, char **argv) {
   UE->high_speed_flag = 1;
   UE->ch_est_alpha=0;
 
-  // initialize sorted lists for timers for which we want the distribution
-  init_sorted_list_meas(&eNB->phy_proc_tx, n_frames * num_rounds);
-  init_sorted_list_meas(&eNB->ofdm_mod_stats, n_frames * num_rounds);
-  init_sorted_list_meas(&eNB->dlsch_modulation_stats, n_frames * num_rounds);
-  init_sorted_list_meas(&eNB->dlsch_encoding_stats, n_frames * num_rounds);
-  init_sorted_list_meas(&UE->phy_proc_rx[0], n_frames * num_rounds);
-  init_sorted_list_meas(&UE->phy_proc_rx[1], n_frames * num_rounds);
+  // initialize histograms for timers for which we want the distribution
+  init_time_stats_histogram(&eNB->phy_proc_tx.time_stats_histogram);
+  init_time_stats_histogram(&eNB->ofdm_mod_stats.time_stats_histogram);
+  init_time_stats_histogram(&eNB->dlsch_modulation_stats.time_stats_histogram);
+  init_time_stats_histogram(&eNB->dlsch_encoding_stats.time_stats_histogram);
+  init_time_stats_histogram(&UE->phy_proc_rx[0].time_stats_histogram);
+  init_time_stats_histogram(&UE->phy_proc_rx[1].time_stats_histogram);
   time_stats_t phy_proc_rx_tot;
-  init_sorted_list_meas(&phy_proc_rx_tot, 2 * n_frames * num_rounds);
-  init_sorted_list_meas(&UE->ofdm_demod_stats, n_frames * num_rounds);
-  init_sorted_list_meas(&UE->dlsch_rx_pdcch_stats, n_frames * num_rounds);
-  init_sorted_list_meas(&UE->dlsch_decoding_stats[0], n_frames * num_rounds);
-  init_sorted_list_meas(&UE->dlsch_decoding_stats[1], n_frames * num_rounds);
+  init_time_stats_histogram(&phy_proc_rx_tot.time_stats_histogram);
+  init_time_stats_histogram(&UE->ofdm_demod_stats.time_stats_histogram);
+  init_time_stats_histogram(&UE->dlsch_rx_pdcch_stats.time_stats_histogram);
+  init_time_stats_histogram(&UE->dlsch_decoding_stats[0].time_stats_histogram);
+  init_time_stats_histogram(&UE->dlsch_decoding_stats[1].time_stats_histogram);
 
   for (ch_realization=0; ch_realization<n_ch_rlz; ch_realization++) {
     if(abstx) {
@@ -2185,18 +2185,18 @@ int main(int argc, char **argv) {
     }// SNR
   } //ch_realization
 
-  // free sorted lists for timers for which we wanted the distribution
-  free_sorted_list_meas(&eNB->phy_proc_tx);
-  free_sorted_list_meas(&eNB->ofdm_mod_stats);
-  free_sorted_list_meas(&eNB->dlsch_modulation_stats);
-  free_sorted_list_meas(&eNB->dlsch_encoding_stats);
-  free_sorted_list_meas(&UE->phy_proc_rx[0]);
-  free_sorted_list_meas(&UE->phy_proc_rx[1]);
-  free_sorted_list_meas(&phy_proc_rx_tot);
-  free_sorted_list_meas(&UE->ofdm_demod_stats);
-  free_sorted_list_meas(&UE->dlsch_rx_pdcch_stats);
-  free_sorted_list_meas(&UE->dlsch_decoding_stats[0]);
-  free_sorted_list_meas(&UE->dlsch_decoding_stats[1]);
+  // free histograms for timers for which we wanted the distribution
+  free_time_stats_histogram(&eNB->phy_proc_tx.time_stats_histogram);
+  free_time_stats_histogram(&eNB->ofdm_mod_stats.time_stats_histogram);
+  free_time_stats_histogram(&eNB->dlsch_modulation_stats.time_stats_histogram);
+  free_time_stats_histogram(&eNB->dlsch_encoding_stats.time_stats_histogram);
+  free_time_stats_histogram(&UE->phy_proc_rx[0].time_stats_histogram);
+  free_time_stats_histogram(&UE->phy_proc_rx[1].time_stats_histogram);
+  free_time_stats_histogram(&phy_proc_rx_tot.time_stats_histogram);
+  free_time_stats_histogram(&UE->ofdm_demod_stats.time_stats_histogram);
+  free_time_stats_histogram(&UE->dlsch_rx_pdcch_stats.time_stats_histogram);
+  free_time_stats_histogram(&UE->dlsch_decoding_stats[0].time_stats_histogram);
+  free_time_stats_histogram(&UE->dlsch_decoding_stats[1].time_stats_histogram);
 
   fclose(bler_fd);
 

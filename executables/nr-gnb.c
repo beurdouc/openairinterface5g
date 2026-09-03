@@ -17,6 +17,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "common/utils/LOG/log.h"
+#include "common/utils/rt_probe.h"
 #include "common/utils/system.h"
 #include "PHY/NR_ESTIMATION/nr_ul_estimation.h"
 #include "openair1/PHY/NR_TRANSPORT/nr_dlsch.h"
@@ -216,6 +217,43 @@ static void rx_func(processingData_L1_t *info)
 
 }
 
+static void configure_ru_rt_probes(RU_t *ru)
+{
+  if (ru == NULL)
+    return;
+
+  rt_probe_config_t cfg = rt_probe_default_config();
+
+  /*
+   * RU probes are short sub-blocks. Keep fine thresholds here.
+   * Typical observed values:
+   * - RU_FEPTX_PREC_CALL around 23 us
+   * - RU_TX_FHAUL_CALL around 79 us
+   */
+  cfg.report_period = 20000;
+  cfg.late_threshold_us = 500;
+  cfg.threshold_us[0] = 50;
+  cfg.threshold_us[1] = 80;
+  cfg.threshold_us[2] = 100;
+  cfg.threshold_us[3] = 200;
+
+  rt_probe_load_config(&cfg, "rt_probe_ru");
+
+  if (ru->rt_ru_feptx_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_feptx_probe, &cfg);
+
+  if (ru->rt_ru_feptx_ofdm_call_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_feptx_ofdm_call_probe, &cfg);
+
+  if (ru->rt_ru_feptx_prec_call_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_feptx_prec_call_probe, &cfg);
+
+  cfg.report_period = 2000;
+
+  if (ru->rt_ru_tx_fhaul_call_probe.initialized)
+    rt_probe_set_config(&ru->rt_ru_tx_fhaul_call_probe, &cfg);
+}
+
 static void nrL1_stats_init_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru, unsigned int size)
 {
   init_sorted_list_meas(&gNB->l1_tx_proc, size);
@@ -401,6 +439,16 @@ void *nrL1_stats_thread(void *param) {
     nrL1_stats_init_sorted_list(gNB, ru, SORTED_LIST_SIZE);
   }
 
+  if (!ru->rt_ru_feptx_prec_call_probe.initialized)
+    rt_probe_init(&ru->rt_ru_feptx_prec_call_probe, "RU_FEPTX_PREC_CALL");
+  if (!ru->rt_ru_feptx_ofdm_call_probe.initialized)
+    rt_probe_init(&ru->rt_ru_feptx_ofdm_call_probe, "RU_FEPTX_OFDM_CALL");
+  if (!ru->rt_ru_tx_fhaul_call_probe.initialized)
+    rt_probe_init(&ru->rt_ru_tx_fhaul_call_probe, "RU_TX_FHAUL_CALL");
+  if (!ru->rt_ru_feptx_probe.initialized)
+    rt_probe_init(&ru->rt_ru_feptx_probe, "RU_FEPTX");
+  configure_ru_rt_probes(ru);
+
   nrL1_stats_reset(gNB, ru);
 
   while (!oai_exit) {
@@ -415,6 +463,14 @@ void *nrL1_stats_thread(void *param) {
     dump_L1_meas_stats(gNB, ru, output, L1STATSSTRLEN);
     fprintf(fd,"%s\n",output);
     fflush(fd);
+
+    /*
+     * Report RU probe records from the low-priority stats thread.
+     */
+    rt_probe_report(&ru->rt_ru_feptx_prec_call_probe, 0);
+    rt_probe_report(&ru->rt_ru_feptx_ofdm_call_probe, 0);
+    rt_probe_report(&ru->rt_ru_tx_fhaul_call_probe, 0);
+    rt_probe_report(&ru->rt_ru_feptx_probe, 0);
   }
 
   if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {

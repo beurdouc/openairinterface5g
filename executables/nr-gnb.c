@@ -42,11 +42,89 @@
 #include "notified_fifo.h"
 #include "thread-pool.h"
 #include "time_meas.h"
+#include "common/config/config_userapi.h"
 #include "utils.h"
 
 #define TICK_TO_US(ts) (ts.trials==0?0:ts.diff/ts.trials)
 #define L1STATSSTRLEN 16384
 static void rx_func(processingData_L1_t *param);
+
+static rt_deadline_probe_config_t g_l1tx_rt_deadline_cfg;
+static int g_l1tx_rt_deadline_cfg_loaded = 0;
+
+static void load_l1tx_rt_deadline_config_once(void)
+{
+  if (g_l1tx_rt_deadline_cfg_loaded)
+    return;
+
+  g_l1tx_rt_deadline_cfg = rt_deadline_default_config();
+
+  /*
+   * L1_TX_JOB_DL measures the full gNB DL TX job around tx_func(info).
+   * It has a larger time scale than the RU sub-probes.
+   * Keep 500 us as an observation threshold, but use 1000 us as the
+   * default late logging threshold to avoid excessive RT_DEADLINE_LATE logs.
+   */
+  g_l1tx_rt_deadline_cfg.enabled = 1;
+  g_l1tx_rt_deadline_cfg.report_period = 20000;
+  g_l1tx_rt_deadline_cfg.late_threshold_us = 1000;
+  g_l1tx_rt_deadline_cfg.threshold_us[0] = 200;
+  g_l1tx_rt_deadline_cfg.threshold_us[1] = 500;
+  g_l1tx_rt_deadline_cfg.threshold_us[2] = 1000;
+  g_l1tx_rt_deadline_cfg.threshold_us[3] = 2000;
+
+  int enabled = g_l1tx_rt_deadline_cfg.enabled;
+  int report_period = (int)g_l1tx_rt_deadline_cfg.report_period;
+  int late_threshold_us = (int)g_l1tx_rt_deadline_cfg.late_threshold_us;
+  int threshold0_us = (int)g_l1tx_rt_deadline_cfg.threshold_us[0];
+  int threshold1_us = (int)g_l1tx_rt_deadline_cfg.threshold_us[1];
+  int threshold2_us = (int)g_l1tx_rt_deadline_cfg.threshold_us[2];
+  int threshold3_us = (int)g_l1tx_rt_deadline_cfg.threshold_us[3];
+
+  paramdef_t RTDeadlineL1TXParams[] = {
+    {"enable", NULL, 0, .iptr = &enabled, .defintval = enabled, TYPE_INT, 0, NULL},
+    {"report_period", NULL, 0, .iptr = &report_period, .defintval = report_period, TYPE_INT, 0, NULL},
+    {"late_threshold_us", NULL, 0, .iptr = &late_threshold_us, .defintval = late_threshold_us, TYPE_INT, 0, NULL},
+    {"threshold0_us", NULL, 0, .iptr = &threshold0_us, .defintval = threshold0_us, TYPE_INT, 0, NULL},
+    {"threshold1_us", NULL, 0, .iptr = &threshold1_us, .defintval = threshold1_us, TYPE_INT, 0, NULL},
+    {"threshold2_us", NULL, 0, .iptr = &threshold2_us, .defintval = threshold2_us, TYPE_INT, 0, NULL},
+    {"threshold3_us", NULL, 0, .iptr = &threshold3_us, .defintval = threshold3_us, TYPE_INT, 0, NULL},
+  };
+
+  config_get(config_get_if(), RTDeadlineL1TXParams, sizeofArray(RTDeadlineL1TXParams), "rt_deadline_l1tx");
+
+  g_l1tx_rt_deadline_cfg.enabled = enabled;
+  g_l1tx_rt_deadline_cfg.report_period = report_period > 0 ? (uint64_t)report_period : g_l1tx_rt_deadline_cfg.report_period;
+  g_l1tx_rt_deadline_cfg.late_threshold_us = late_threshold_us > 0 ? (uint64_t)late_threshold_us : g_l1tx_rt_deadline_cfg.late_threshold_us;
+  g_l1tx_rt_deadline_cfg.threshold_us[0] = threshold0_us > 0 ? (uint64_t)threshold0_us : g_l1tx_rt_deadline_cfg.threshold_us[0];
+  g_l1tx_rt_deadline_cfg.threshold_us[1] = threshold1_us > 0 ? (uint64_t)threshold1_us : g_l1tx_rt_deadline_cfg.threshold_us[1];
+  g_l1tx_rt_deadline_cfg.threshold_us[2] = threshold2_us > 0 ? (uint64_t)threshold2_us : g_l1tx_rt_deadline_cfg.threshold_us[2];
+  g_l1tx_rt_deadline_cfg.threshold_us[3] = threshold3_us > 0 ? (uint64_t)threshold3_us : g_l1tx_rt_deadline_cfg.threshold_us[3];
+
+  printf("RT_DEADLINE_CONFIG_L1TX enabled=%d report_period=%lu late_threshold_us=%lu "
+         "threshold0_us=%lu threshold1_us=%lu threshold2_us=%lu threshold3_us=%lu\n",
+         g_l1tx_rt_deadline_cfg.enabled,
+         g_l1tx_rt_deadline_cfg.report_period,
+         g_l1tx_rt_deadline_cfg.late_threshold_us,
+         g_l1tx_rt_deadline_cfg.threshold_us[0],
+         g_l1tx_rt_deadline_cfg.threshold_us[1],
+         g_l1tx_rt_deadline_cfg.threshold_us[2],
+         g_l1tx_rt_deadline_cfg.threshold_us[3]);
+  fflush(stdout);
+
+  g_l1tx_rt_deadline_cfg_loaded = 1;
+}
+
+static void configure_gnb_l1tx_rt_probe(PHY_VARS_gNB *gNB)
+{
+  if (!gNB)
+    return;
+
+  load_l1tx_rt_deadline_config_once();
+  rt_probe_set_config(&gNB->rt_l1_tx_job_probe, &g_l1tx_rt_deadline_cfg);
+}
+
+
 
 static void tx_func(processingData_L1tx_t *info)
 {
@@ -145,9 +223,29 @@ void *L1_tx_thread(void *arg) {
        break;
      processingData_L1tx_t *info = (processingData_L1tx_t *)NotifiedFifoData(res);
      int slot_type = nr_slot_select(&gNB->gNB_config, info->frame, info->slot);
+     uint64_t rt_l1_tx_start_ns = 0;
+
+     if (slot_type == NR_DOWNLINK_SLOT) {
+       if (!gNB->rt_l1_tx_job_probe.initialized) {
+         rt_probe_init(&gNB->rt_l1_tx_job_probe, "L1_TX_JOB_DL");
+         configure_gnb_l1tx_rt_probe(gNB);
+       }
+
+       rt_l1_tx_start_ns = rt_probe_now_ns();
+     }
      START_MEAS_FULL_SLOT(&gNB->l1_tx_proc, slot_type, NR_DOWNLINK_SLOT);
+
      tx_func(info);
+
      STOP_MEAS_FULL_SLOT(&gNB->l1_tx_proc, slot_type, NR_DOWNLINK_SLOT);
+     if (slot_type == NR_DOWNLINK_SLOT) {
+
+       const uint64_t rt_l1_tx_duration_us = rt_probe_ns_to_us(rt_probe_now_ns() - rt_l1_tx_start_ns);
+       rt_probe_record(&gNB->rt_l1_tx_job_probe, rt_l1_tx_duration_us);
+       rt_probe_maybe_log_late(&gNB->rt_l1_tx_job_probe, info->frame, info->slot, rt_l1_tx_duration_us, g_l1tx_rt_deadline_cfg.late_threshold_us);
+       rt_probe_maybe_report(&gNB->rt_l1_tx_job_probe, g_l1tx_rt_deadline_cfg.report_period);
+     }
+
      delNotifiedFIFO_elt(res);
   }
   return NULL;

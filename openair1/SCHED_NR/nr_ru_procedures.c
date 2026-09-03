@@ -18,6 +18,7 @@
 #include "T.h"
 
 #include "assertions.h"
+#include "common/utils/rt_deadline_probe.h"
 
 #include <time.h>
 
@@ -229,6 +230,12 @@ void nr_feptx_tp(RU_t *ru, int frame_tx, int slot)
 
   if (nr_slot_select(cfg, frame_tx, slot) == NR_UPLINK_SLOT)
     return;
+
+  if (!ru->rt_ru_feptx_probe.initialized)
+    rt_probe_init(&ru->rt_ru_feptx_probe, "RU_FEPTX");
+
+  const uint64_t rt_start_ns = rt_probe_now_ns();
+
   start_meas(&ru->ofdm_total_stats);
 
   int nt = fp->nb_antennas_tx;
@@ -268,6 +275,13 @@ void nr_feptx_tp(RU_t *ru, int frame_tx, int slot)
   join_task_ans(&ans);
 
   stop_meas(&ru->ofdm_total_stats);
+
+  const uint64_t rt_end_ns = rt_probe_now_ns();
+  const uint64_t rt_duration_us = rt_probe_ns_to_us(rt_end_ns - rt_start_ns);
+
+  rt_probe_record(&ru->rt_ru_feptx_probe, rt_duration_us);
+  rt_probe_maybe_log_late(&ru->rt_ru_feptx_probe, frame_tx, slot, rt_duration_us, 500);
+  rt_probe_maybe_report(&ru->rt_ru_feptx_probe, 2000);
 }
 
 // core RX FEP routine, called by threads in RU thread-pool

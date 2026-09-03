@@ -149,6 +149,11 @@ void *L1_tx_thread(void *arg) {
      START_MEAS_FULL_SLOT(&gNB->l1_tx_proc, slot_type, NR_DOWNLINK_SLOT);
      tx_func(info);
      STOP_MEAS_FULL_SLOT(&gNB->l1_tx_proc, slot_type, NR_DOWNLINK_SLOT);
+
+     if (slot_type == NR_DOWNLINK_SLOT) {
+       rt_probe_record(&gNB->rt_l1_tx_job_probe, &gNB->l1_tx_proc);
+     }
+
      delNotifiedFIFO_elt(res);
   }
   return NULL;
@@ -252,6 +257,31 @@ static void configure_ru_rt_probes(RU_t *ru)
 
   if (ru->rt_ru_tx_fhaul_call_probe.initialized)
     rt_probe_set_config(&ru->rt_ru_tx_fhaul_call_probe, &cfg);
+}
+
+static void configure_gnb_l1tx_rt_probe(PHY_VARS_gNB *gNB)
+{
+  if (!gNB)
+    return;
+
+  rt_probe_config_t cfg = rt_probe_default_config();
+
+  /*
+   * L1_TX_JOB_DL measures the full gNB DL TX job around tx_func(info).
+   * It has a larger time scale than the RU sub-probes.
+   * Keep 500 us as an observation threshold, but use 1000 us as the
+   * default late logging threshold to avoid excessive RT_DEADLINE_LATE logs.
+   */
+  cfg.report_period = 20000;
+  cfg.late_threshold_us = 1000;
+  cfg.threshold_us[0] = 200;
+  cfg.threshold_us[1] = 400;
+  cfg.threshold_us[2] = 600;
+  cfg.threshold_us[3] = 800;
+
+  rt_probe_load_config(&cfg, "rt_probe_l1tx");
+
+  rt_probe_set_config(&gNB->rt_l1_tx_job_probe, &cfg);
 }
 
 static void nrL1_stats_init_sorted_list(PHY_VARS_gNB *gNB, RU_t *ru, unsigned int size)
@@ -449,6 +479,11 @@ void *nrL1_stats_thread(void *param) {
     rt_probe_init(&ru->rt_ru_feptx_probe, "RU_FEPTX");
   configure_ru_rt_probes(ru);
 
+  if (!gNB->rt_l1_tx_job_probe.initialized) {
+    rt_probe_init(&gNB->rt_l1_tx_job_probe, "L1_TX_JOB_DL");
+    configure_gnb_l1tx_rt_probe(gNB);
+  }
+
   nrL1_stats_reset(gNB, ru);
 
   while (!oai_exit) {
@@ -471,6 +506,8 @@ void *nrL1_stats_thread(void *param) {
     rt_probe_report(&ru->rt_ru_feptx_ofdm_call_probe, 0);
     rt_probe_report(&ru->rt_ru_tx_fhaul_call_probe, 0);
     rt_probe_report(&ru->rt_ru_feptx_probe, 0);
+
+    rt_probe_report(&gNB->rt_l1_tx_job_probe, 0);
   }
 
   if (cpu_meas_enabled == TIME_STATS_ADVANCED_MODE) {

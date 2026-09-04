@@ -3,17 +3,35 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #define RT_DEADLINE_NUM_THRESHOLDS 4
+#define RT_DEADLINE_CAPTURE_PATH_MAX 256
 
 typedef struct {
   int enabled;
   uint64_t report_period;
   uint64_t late_threshold_us;
   uint64_t threshold_us[RT_DEADLINE_NUM_THRESHOLDS];
+
+  int capture_enable;
+  int capture_async_flush_enable;
+  int capture_final_dump_enable;
+  uint64_t capture_samples;
+  char capture_path[RT_DEADLINE_CAPTURE_PATH_MAX];
 } rt_deadline_probe_config_t;
+
+typedef struct {
+  uint64_t capture_index;
+  uint64_t probe_total;
+  int frame;
+  int slot;
+  uint64_t duration_us;
+  uint64_t late_threshold_us;
+  int late;
+} rt_deadline_capture_sample_t;
 
 static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
 {
@@ -22,6 +40,11 @@ static inline rt_deadline_probe_config_t rt_deadline_default_config(void)
       .report_period = 20000,
       .late_threshold_us = 500,
       .threshold_us = {100, 200, 500, 1000},
+      .capture_enable = 0,
+      .capture_async_flush_enable = 0,
+      .capture_final_dump_enable = 1,
+      .capture_samples = 20000,
+      .capture_path = "/tmp/rt_deadline_samples.csv",
   };
   return cfg;
 }
@@ -53,6 +76,19 @@ typedef struct {
   uint64_t hist_over_2000;
 
   uint64_t last_report_total;
+
+  rt_deadline_capture_sample_t *capture_buffer;
+  uint64_t capture_count;
+  uint64_t capture_capacity;
+  uint64_t capture_last_dump_count;
+  uint64_t capture_write_index;
+  uint64_t capture_read_index;
+  uint64_t capture_dropped_count;
+  FILE *capture_fd;
+  int capture_header_written;
+  int capture_writer_busy;
+  int capture_dumped;
+  int capture_alloc_failed;
 } rt_deadline_probe_t;
 
 static inline uint64_t rt_probe_now_ns(void)
@@ -83,13 +119,265 @@ static inline void rt_probe_init(rt_deadline_probe_t *p, const char *name)
   p->cfg = rt_deadline_default_config();
 }
 
+static inline void rt_probe_reset_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL)
+    return;
+
+  if (p->capture_fd != NULL) {
+    fclose(p->capture_fd);
+    p->capture_fd = NULL;
+  }
+
+  if (p->capture_buffer != NULL) {
+    free(p->capture_buffer);
+    p->capture_buffer = NULL;
+  }
+
+  p->capture_count = 0;
+  p->capture_capacity = 0;
+  p->capture_last_dump_count = 0;
+  p->capture_write_index = 0;
+  p->capture_read_index = 0;
+  p->capture_dropped_count = 0;
+  p->capture_header_written = 0;
+  p->capture_writer_busy = 0;
+  p->capture_dumped = 0;
+  p->capture_alloc_failed = 0;
+}
+
+static inline void rt_probe_setup_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL)
+    return;
+
+  if (!p->cfg.capture_enable || p->cfg.capture_samples == 0)
+    return;
+
+  if (p->capture_buffer != NULL)
+    return;
+
+  if (p->cfg.capture_samples > (uint64_t)(SIZE_MAX / sizeof(*p->capture_buffer))) {
+    p->capture_alloc_failed = 1;
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=too_many_samples samples=%lu\n",
+           p->name,
+           p->cfg.capture_samples);
+    fflush(stdout);
+    return;
+  }
+
+  p->capture_buffer = calloc((size_t)p->cfg.capture_samples, sizeof(*p->capture_buffer));
+  if (p->capture_buffer == NULL) {
+    p->capture_alloc_failed = 1;
+    printf("RT_DEADLINE_CAPTURE_ERROR probe=%s reason=alloc_failed samples=%lu\n",
+           p->name,
+           p->cfg.capture_samples);
+    fflush(stdout);
+    return;
+  }
+
+  p->capture_capacity = p->cfg.capture_samples;
+  p->capture_count = 0;
+  p->capture_last_dump_count = 0;
+  p->capture_write_index = 0;
+  p->capture_read_index = 0;
+  p->capture_dropped_count = 0;
+  p->capture_fd = NULL;
+  p->capture_header_written = 0;
+  p->capture_writer_busy = 0;
+  p->capture_dumped = 0;
+  p->capture_alloc_failed = 0;
+
+  printf("RT_DEADLINE_CAPTURE_CONFIG probe=%s enable=%d async_flush_enable=%d final_dump_enable=%d samples=%lu path=%s\n",
+         p->name,
+         p->cfg.capture_enable,
+         p->cfg.capture_async_flush_enable,
+         p->cfg.capture_final_dump_enable,
+         p->cfg.capture_samples,
+         p->cfg.capture_path);
+  fflush(stdout);
+}
+
 static inline void rt_probe_set_config(rt_deadline_probe_t *p,
                                        const rt_deadline_probe_config_t *cfg)
 {
   if (p == NULL || cfg == NULL)
     return;
 
+  rt_probe_reset_capture(p);
   p->cfg = *cfg;
+  rt_probe_setup_capture(p);
+}
+
+static inline void rt_probe_flush_capture_csv(rt_deadline_probe_t *p, int final_dump)
+{
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  if (!final_dump && !p->cfg.capture_async_flush_enable)
+    return;
+
+  if (p->capture_buffer == NULL || p->capture_capacity == 0)
+    return;
+
+  if (p->cfg.capture_path[0] == '\0')
+    return;
+
+  if (p->capture_dumped)
+    return;
+
+  if (__sync_lock_test_and_set(&p->capture_writer_busy, 1)) {
+    if (!final_dump)
+      return;
+
+    while (__sync_lock_test_and_set(&p->capture_writer_busy, 1)) {
+      const struct timespec wait_ts = {.tv_sec = 0, .tv_nsec = 1000000L};
+      nanosleep(&wait_ts, NULL);
+    }
+  }
+
+  const uint64_t read_index = __atomic_load_n(&p->capture_read_index, __ATOMIC_ACQUIRE);
+  const uint64_t write_index = __atomic_load_n(&p->capture_write_index, __ATOMIC_ACQUIRE);
+  uint64_t flushed = 0;
+
+  if (write_index > read_index) {
+    if (p->capture_fd == NULL) {
+      p->capture_fd = fopen(p->cfg.capture_path, p->capture_header_written ? "a" : "w");
+      if (p->capture_fd == NULL) {
+        printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fopen\n",
+               p->name,
+               write_index - read_index,
+               p->cfg.capture_path);
+        fflush(stdout);
+        __sync_lock_release(&p->capture_writer_busy);
+        return;
+      }
+
+      if (!p->capture_header_written) {
+        fprintf(p->capture_fd,
+                "capture_index,probe_total,frame,slot,duration_us,late_threshold_us,late\n");
+        p->capture_header_written = 1;
+      }
+    }
+
+    for (uint64_t seq = read_index; seq < write_index; seq++) {
+      const rt_deadline_capture_sample_t *sample = &p->capture_buffer[seq % p->capture_capacity];
+
+      fprintf(p->capture_fd,
+              "%lu,%lu,%d,%d,%lu,%lu,%d\n",
+              sample->capture_index,
+              sample->probe_total,
+              sample->frame,
+              sample->slot,
+              sample->duration_us,
+              sample->late_threshold_us,
+              sample->late);
+      flushed++;
+    }
+
+    if (fflush(p->capture_fd) != 0) {
+      printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fflush\n",
+             p->name,
+             flushed,
+             p->cfg.capture_path);
+      fflush(stdout);
+      __sync_lock_release(&p->capture_writer_busy);
+      return;
+    }
+
+    __atomic_store_n(&p->capture_read_index, write_index, __ATOMIC_RELEASE);
+    p->capture_last_dump_count = write_index;
+  }
+
+  if (final_dump && p->capture_fd != NULL) {
+    if (fclose(p->capture_fd) != 0) {
+      printf("RT_DEADLINE_CAPTURE_ERROR probe=%s samples=%lu path=%s reason=fclose\n",
+             p->name,
+             flushed,
+             p->cfg.capture_path);
+      fflush(stdout);
+      p->capture_fd = NULL;
+      __sync_lock_release(&p->capture_writer_busy);
+      return;
+    }
+    p->capture_fd = NULL;
+  }
+
+  if (final_dump)
+    p->capture_dumped = 1;
+
+  if (flushed > 0 || final_dump) {
+    printf("%s probe=%s flushed=%lu produced=%lu dropped=%lu capacity=%lu final=%d path=%s\n",
+           final_dump ? "RT_DEADLINE_CAPTURE_DUMP" : "RT_DEADLINE_CAPTURE_ASYNC_FLUSH",
+           p->name,
+           flushed,
+           write_index,
+           __atomic_load_n(&p->capture_dropped_count, __ATOMIC_RELAXED),
+           p->capture_capacity,
+           final_dump,
+           p->cfg.capture_path);
+    fflush(stdout);
+  }
+
+  __sync_lock_release(&p->capture_writer_busy);
+}
+
+static inline void rt_probe_dump_capture(rt_deadline_probe_t *p)
+{
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  /*
+   * Final dumps are performed during controlled shutdown, not periodically
+   * from the realtime path. Keep this behavior explicit and configurable.
+   */
+  if (!p->cfg.capture_final_dump_enable)
+    return;
+
+  rt_probe_flush_capture_csv(p, 1);
+}
+
+static inline void rt_probe_capture_sample(rt_deadline_probe_t *p,
+                                           int frame,
+                                           int slot,
+                                           uint64_t duration_us)
+{
+  if (p == NULL || !p->initialized)
+    return;
+
+  if (!p->cfg.enabled || !p->cfg.capture_enable)
+    return;
+
+  if (p->capture_buffer == NULL || p->capture_capacity == 0 || p->capture_dumped)
+    return;
+
+  const uint64_t read_index = __atomic_load_n(&p->capture_read_index, __ATOMIC_ACQUIRE);
+  const uint64_t write_index = __atomic_load_n(&p->capture_write_index, __ATOMIC_RELAXED);
+
+  if (write_index - read_index >= p->capture_capacity) {
+    __atomic_add_fetch(&p->capture_dropped_count, 1, __ATOMIC_RELAXED);
+    return;
+  }
+
+  const uint64_t idx = write_index % p->capture_capacity;
+  rt_deadline_capture_sample_t *sample = &p->capture_buffer[idx];
+
+  sample->capture_index = write_index;
+  sample->probe_total = p->total;
+  sample->frame = frame;
+  sample->slot = slot;
+  sample->duration_us = duration_us;
+  sample->late_threshold_us = p->cfg.late_threshold_us;
+  sample->late = p->cfg.late_threshold_us > 0 && duration_us > p->cfg.late_threshold_us;
+
+  __atomic_store_n(&p->capture_write_index, write_index + 1, __ATOMIC_RELEASE);
+  __atomic_store_n(&p->capture_count, write_index + 1, __ATOMIC_RELAXED);
 }
 
 static inline void rt_probe_record(rt_deadline_probe_t *p, uint64_t duration_us)

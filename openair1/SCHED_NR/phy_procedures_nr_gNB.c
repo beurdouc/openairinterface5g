@@ -1401,6 +1401,8 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
       rt_l1rx_ctx.ul_crc_fail_count++;
   }
 
+  STOP_MEAS_FULL_SLOT(&gNB->phy_proc_rx, slot_type, NR_UPLINK_SLOT);
+
   UL_INFO->srs_ind.sfn = frame_rx;
   UL_INFO->srs_ind.slot = slot_rx;
   UL_INFO->srs_ind.pdu_list = UL_INFO->srs_pdu_list;
@@ -1410,8 +1412,6 @@ int phy_procedures_gNB_uespec_RX(PHY_VARS_gNB *gNB, int frame_rx, int slot_rx, N
     handle_srs(now, gNB, &srs[i], &UL_INFO->srs_ind.pdu_list[i], &UL_INFO->srs_toa_vendor_ext_ind);
     stop_meas(&gNB->rx_srs_stats);
   }
-
-  STOP_MEAS_FULL_SLOT(&gNB->phy_proc_rx, slot_type, NR_UPLINK_SLOT);
 
   if (n_pucch > 0 || num_pusch > 0) {
     UNUSED(ofdm_symbol_size); // only used if T activated

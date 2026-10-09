@@ -7,6 +7,7 @@
 
 #include <unistd.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
@@ -142,6 +143,19 @@ static inline void start_meas(time_stats_t *ts) __attribute__((always_inline));
 static inline void stop_meas(time_stats_t *ts) __attribute__((always_inline));
 
 /**
+ * \struct time_single
+ * \brief same as time_stats but lighter and for a single measure to merge in a time_stats
+ */
+typedef struct time_single {
+  oai_cputime_t in;                                /*!< \brief time at measure starting point */
+  oai_cputime_t p_time;                            /*!< \brief absolute process duration */
+  bool used;                                       /*!< \brief true if the timer was used and holds a valid measure*/
+} time_single_t;
+
+static inline void start_single_meas(time_single_t *ts) __attribute__((always_inline));
+static inline void stop_single_meas(time_single_t *ts) __attribute__((always_inline));
+
+/**
  * \brief get the standard deviation of a timer
  * \param ptr timer to query
  */
@@ -258,6 +272,25 @@ static inline void stop_meas(time_stats_t *ts) {
   }
 }
 
+static inline void start_single_meas(time_single_t *ts)
+{
+  if (cpu_meas_enabled && !ts->used) {
+    ts->in = clock_gettime_oai();
+  }
+}
+
+static inline void stop_single_meas(time_single_t *ts)
+{
+  if (cpu_meas_enabled && !ts->used) {
+    long long out = clock_gettime_oai();
+    if (ts->in) {
+      /// process duration is the difference between two clock points
+      ts->p_time = (out - ts->in);
+      ts->used = true;
+    }
+  }
+}
+
 static inline void reset_meas(time_stats_t *ts) {
   ts->in=0;
   ts->diff=0;
@@ -267,6 +300,13 @@ static inline void reset_meas(time_stats_t *ts) {
   ts->trials=0;
   ts->meas_flag=0;
   reset_time_hist(&ts->time_hist);
+}
+
+static inline void reset_single_meas(time_single_t *ts)
+{
+  ts->in = 0;
+  ts->p_time = 0;
+  ts->used = false;
 }
 
 static inline void copy_meas(time_stats_t *dst_ts,time_stats_t *src_ts) {
@@ -288,6 +328,23 @@ static inline void merge_meas(time_stats_t *dst_ts, const time_stats_t *src_ts)
   if (src_ts->max > dst_ts->max)
     dst_ts->max = src_ts->max;
   merge_time_hist(&dst_ts->time_hist, &src_ts->time_hist);
+}
+
+/**
+ * \brief merge single measurement in time_stats
+ * \param dst_ts time_stats to merge into
+ * \param src_ts single measurement to merge
+ */
+static inline void merge_single_meas(time_stats_t *dst_ts, const time_single_t *src_ts)
+{
+  if (!cpu_meas_enabled || !src_ts->used)
+    return;
+  dst_ts->trials += 1;
+  dst_ts->diff += src_ts->p_time;
+  dst_ts->diff_square += src_ts->p_time * src_ts->p_time;
+  if (src_ts->p_time > dst_ts->max)
+    dst_ts->max = src_ts->p_time;
+  insert_in_time_hist(&dst_ts->time_hist, src_ts->p_time);
 }
 
 #define TIME_STATS_ACCUMULATE_MODE 1 // cpu_meas_enabled == 1 => accumulate through time

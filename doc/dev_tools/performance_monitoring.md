@@ -93,7 +93,7 @@ the [debugging tools section](#debugging-purpose).
 
 * Timer based on Posix real time clocks.
 * Accumulate successive measurements. Merge function enables to merge many
-  timers measuring parallel processes.
+  timers measuring parallel processes (see `time_single_t` below).
 * Provides average time, standard deviation and, optionally, time distribution.
 * May be started and stopped on full DL or UL slots only for clean and relevant
   measurements.
@@ -126,3 +126,11 @@ histogram is automatically managed when a timer is reset and does not require
 explicit initialization or freeing. Each timer contains a histogram structure
 (`time_hist_t`) that records the distribution of processing times
 in configurable bins.
+
+**Warning**:
+For measuring one function in several parallel threads, one should use several
+`time_single_t` timers. This timer holds only one measurement. It can be
+started with `start_single_meas`, stopped with `stop_single_meas`, merged in a
+`time_stats_t` with `merge_single_meas` and reset with `reset_single_meas`.
+This way, one avoids to create many `time_stats_t` that are rather
+large structures.
